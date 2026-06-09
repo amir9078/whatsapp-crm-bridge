@@ -1,0 +1,70 @@
+// Trimmed self-host schema (docs/03 §2). SQLite in dev, Postgres in prod (M8) — same models.
+// Note: SQLite has no enums/jsonb, so statuses are strings (validated by zod in @wcb/shared)
+// and media metadata is a JSON string.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model WaConnection {
+  id        String   @id @default(uuid())
+  phoneE164 String?
+  provider  String   @default("baileys")
+  status    String   @default("disconnected")
+  createdAt DateTime @default(now())
+
+  conversations Conversation[]
+}
+
+model Contact {
+  id          String   @id @default(uuid())
+  waId        String?
+  phoneE164   String   @unique
+  displayName String?
+  createdAt   DateTime @default(now())
+
+  conversations Conversation[]
+}
+
+model Conversation {
+  id             String    @id @default(uuid())
+  contactId      String
+  waConnectionId String
+  lastMessageAt  DateTime?
+  unreadCount    Int       @default(0)
+  createdAt      DateTime  @default(now())
+
+  contact      Contact      @relation(fields: [contactId], references: [id])
+  waConnection WaConnection @relation(fields: [waConnectionId], references: [id])
+  messages     Message[]
+
+  @@unique([contactId, waConnectionId])
+  @@index([lastMessageAt])
+}
+
+model Message {
+  id              String   @id @default(uuid())
+  conversationId  String
+  /// Provider message id — the idempotency key for inbound dedupe.
+  waMessageId     String?
+  clientMessageId String?
+  direction       String // 'in' | 'out'
+  type            String // 'text' | 'image' | ...
+  body            String?
+  /// JSON-serialized MediaMeta (SQLite has no jsonb).
+  mediaMeta       String?
+  status          String? // 'queued' | 'sent' | 'delivered' | 'read' | 'failed'
+  senderName      String?
+  timestamp       DateTime
+  createdAt       DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+
+  @@unique([conversationId, waMessageId])
+  @@index([conversationId, timestamp])
+}

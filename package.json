@@ -18,10 +18,17 @@
     "typecheck": "tsc -b",
     "build": "pnpm -r build",
     "connector:dev": "pnpm -F @wcb/shared build && tsx packages/connector/src/cli.ts",
+    "db:generate": "pnpm -F @wcb/db generate",
+    "db:migrate": "pnpm -F @wcb/db migrate:dev",
+    "wa:dev": "pnpm -r build && tsx scripts/wa-dev.ts",
     "test": "pnpm -r test"
   },
   "devDependencies": {
     "@eslint/js": "^9.17.0",
+    "@types/qrcode-terminal": "^0.12.2",
+    "@wcb/connector": "workspace:*",
+    "@wcb/db": "workspace:*",
+    "qrcode-terminal": "^0.12.0",
     "@types/node": "^22.10.2",
     "eslint": "^9.17.0",
     "prettier": "^3.4.2",

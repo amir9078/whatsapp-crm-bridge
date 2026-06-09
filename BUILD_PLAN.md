@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M3.** M0–M2 ✅ — connector links to WhatsApp & renders a real QR (verified live); `pnpm typecheck` + `pnpm lint` green.
+> **Current status: ▶ Next = M4.** M0–M3 ✅ — connector links to WhatsApp (live QR verified); messages persist idempotently to SQLite (3/3 tests pass); typecheck + lint green. Try it: `pnpm wa:dev`.
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -78,11 +78,13 @@ Claude will then:
 - [x] CLI harness `pnpm connector:dev` (`/send +<E164> <msg>`, `/quit`) + self-terminating smoke via `WA_SMOKE_MS`.
 **Acceptance:** ✅ verified — typecheck + lint clean, and a live smoke run **connected to WhatsApp and rendered a real, scannable QR**. ⏳ Final hands-on step is yours: run `pnpm connector:dev`, scan with your phone, watch messages stream in, then `/send` a reply.
 
-### ☐ M3 — Database & persistence · ~1 session · _read `docs/03` §2_
+### ✅ M3 — Database & persistence · DONE · _spec `docs/03` §2_
 **Goal:** messages survive restarts.
-- [ ] `packages/db`: Prisma schema (trimmed from `docs/03`: contact, conversation, message, wa_connection). SQLite datasource.
-- [ ] Migrations + client; connector writes contacts/conversations/messages (idempotent on `wa_message_id`).
-**Acceptance:** receive messages, restart, query them back — no duplicates.
+- [x] `packages/db`: Prisma schema (WaConnection, Contact, Conversation, Message) on SQLite; initial migration `20260609190209_init` committed.
+- [x] Idempotent ingest (`ingestInboundMessage`: unique on `conversationId+waMessageId`, P2002 → no-op; counters bumped only on real insert), `ensureConnection`, `updateMessageStatus`, query helpers.
+- [x] `scripts/wa-dev.ts` harness (`pnpm wa:dev`): connector → DB; prints restored conversations on startup; `/send` works.
+- [x] Tests (node:test, throwaway SQLite): duplicate ingest → 1 row & no unread double-count; reply lands in same conversation; fresh-client "restart" reads all back ordered.
+**Acceptance:** ✅ 3/3 tests pass; typecheck + lint green. (Live phone run: `pnpm wa:dev`.)
 
 ### ☐ M4 — Server: API + real-time · ~1–2 sessions · _read `docs/03` §3–4, `docs/05`_
 **Goal:** backend the UI can talk to.

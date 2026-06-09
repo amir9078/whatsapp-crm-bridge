@@ -1,4 +1,8 @@
 {
   "files": [],
-  "references": [{ "path": "packages/shared" }, { "path": "packages/connector" }]
+  "references": [
+    { "path": "packages/shared" },
+    { "path": "packages/connector" },
+    { "path": "packages/db" }
+  ]
 }
