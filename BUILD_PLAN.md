@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M1.** M0 ✅ — repo scaffolded; `pnpm install` + `pnpm lint` pass clean.
+> **Current status: ▶ Next = M2.** M0–M1 ✅ — scaffold + shared types/interfaces build clean (`pnpm typecheck` + `pnpm lint` green).
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -63,12 +63,13 @@ Claude will then:
 > git push -u origin main
 > ```
 
-### ☐ M1 — Shared types & interfaces · ~1 session · _read `docs/03`_
+### ✅ M1 — Shared types & interfaces · ~1 session · DONE · _spec `docs/03`_
 **Goal:** one source of truth for data shapes and the two key interfaces.
-- [ ] `packages/shared`: zod schemas + types for `Message`, `Contact`, `Conversation`, event envelope.
-- [ ] `WhatsAppConnector` interface (connect, QR event, sendMessage, inbound/status events).
-- [ ] `CrmAdapter` interface (findContactByPhone, createContact, appendNote, capabilities).
-**Acceptance:** package builds; types import cleanly from another package.
+- [x] `packages/shared`: zod schemas + types for `Contact`, `Conversation`, `Message`, `MediaMeta`, `WaConnection`, enums, and the `WhatsAppEvent` discriminated-union envelope.
+- [x] `WhatsAppConnector` interface (connect, status/QR events, `sendMessage`, `on()` subscription).
+- [x] `CrmAdapter` interface (auth, `findContactByPhone`, `createContact`, `appendNote`, capabilities).
+- [x] Wired TS project references; `@wcb/connector` imports the interface from `@wcb/shared` to prove cross-package resolution.
+**Acceptance:** ✅ `pnpm typecheck` (tsc -b) builds `shared` + `connector`; `dist` emits `.d.ts`; `pnpm lint` clean.
 
 ### ☐ M2 — WhatsApp connector + console test · ~1–2 sessions · _read `docs/05` §1–3_
 **Goal:** prove Baileys works on YOUR number (the big de-risk).

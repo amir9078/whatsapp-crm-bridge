@@ -1,5 +1,4 @@
 {
-  "comment": "Root solution file. Project references are added per package starting in M1.",
   "files": [],
-  "references": []
+  "references": [{ "path": "packages/shared" }, { "path": "packages/connector" }]
 }
