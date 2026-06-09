@@ -72,3 +72,6 @@ export const WhatsAppEvent = z.discriminatedUnion('type', [
 ]);
 export type WhatsAppEvent = z.infer<typeof WhatsAppEvent>;
 export type WhatsAppEventType = WhatsAppEvent['type'];
+
+/** Handler for the canonical (server-side) event stream pushed to the bus / WebSocket. */
+export type WhatsAppEventHandler = (event: WhatsAppEvent) => void;

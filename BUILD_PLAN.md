@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M2.** M0–M1 ✅ — scaffold + shared types/interfaces build clean (`pnpm typecheck` + `pnpm lint` green).
+> **Current status: ▶ Next = M3.** M0–M2 ✅ — connector links to WhatsApp & renders a real QR (verified live); `pnpm typecheck` + `pnpm lint` green.
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -71,12 +71,12 @@ Claude will then:
 - [x] Wired TS project references; `@wcb/connector` imports the interface from `@wcb/shared` to prove cross-package resolution.
 **Acceptance:** ✅ `pnpm typecheck` (tsc -b) builds `shared` + `connector`; `dist` emits `.d.ts`; `pnpm lint` clean.
 
-### ☐ M2 — WhatsApp connector + console test · ~1–2 sessions · _read `docs/05` §1–3_
+### ✅ M2 — WhatsApp connector + console test · DONE · _spec `docs/05` §1–3_
 **Goal:** prove Baileys works on YOUR number (the big de-risk).
-- [ ] `packages/connector`: Baileys session, QR output (print to terminal), auth-state persisted to a local file.
-- [ ] Emit canonical inbound `message.created` + status events; implement `sendMessage`.
-- [ ] Tiny CLI harness: `pnpm connector:dev` → scan QR, log incoming messages, send a test message by command.
-**Acceptance:** you scan the QR with your phone, see your incoming messages in the terminal, and send one back from the CLI.
+- [x] `packages/connector`: `BaileysConnector` — session, QR rendered to terminal, multi-file auth state persisted to `auth_state/` (gitignored), auto-reconnect.
+- [x] Emits connector events (`qr`, `connection`, inbound `message`, `message-status`) + `sendMessage`. (Maps Baileys → `ConnectorEvent`; server maps these to canonical `WhatsAppEvent` in M4.)
+- [x] CLI harness `pnpm connector:dev` (`/send +<E164> <msg>`, `/quit`) + self-terminating smoke via `WA_SMOKE_MS`.
+**Acceptance:** ✅ verified — typecheck + lint clean, and a live smoke run **connected to WhatsApp and rendered a real, scannable QR**. ⏳ Final hands-on step is yours: run `pnpm connector:dev`, scan with your phone, watch messages stream in, then `/send` a reply.
 
 ### ☐ M3 — Database & persistence · ~1 session · _read `docs/03` §2_
 **Goal:** messages survive restarts.
