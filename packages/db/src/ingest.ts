@@ -75,7 +75,7 @@ export async function ingestInboundMessage(
       where: { id: conversation.id },
       data: {
         lastMessageAt: timestamp,
-        ...(inbound.fromMe ? {} : { unreadCount: { increment: 1 } }),
+        ...(inbound.fromMe || inbound.historySync ? {} : { unreadCount: { increment: 1 } }),
       },
     });
     return {

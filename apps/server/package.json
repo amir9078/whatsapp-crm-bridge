@@ -3,9 +3,24 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "main": "./dist/index.js",
   "scripts": {
-    "build": "echo \"[@wcb/server] scaffolded in M4\"",
-    "dev": "echo \"[@wcb/server] dev server arrives in M4\"",
-    "test": "echo \"[@wcb/server] no tests yet\""
+    "build": "tsc -b",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "tsx --test src/app.test.ts"
+  },
+  "dependencies": {
+    "@fastify/cors": "^10.0.1",
+    "@wcb/connector": "workspace:*",
+    "@wcb/db": "workspace:*",
+    "@wcb/shared": "workspace:*",
+    "fastify": "^5.2.0",
+    "socket.io": "^4.8.1",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "socket.io-client": "^4.8.1",
+    "tsx": "^4.19.2"
   }
 }

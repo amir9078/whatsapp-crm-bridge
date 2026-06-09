@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "server",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-F", "@wcb/server", "dev"],
+      "port": 4000
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["-F", "@wcb/web", "dev"],
+      "port": 3000
+    }
+  ]
+}

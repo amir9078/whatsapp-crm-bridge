@@ -12,6 +12,7 @@ export default tseslint.config(
       '**/coverage/**',
       '**/*.tsbuildinfo',
       'docs/interface-mockup.html',
+      'apps/web/next-env.d.ts',
     ],
   },
   {

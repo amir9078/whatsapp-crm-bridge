@@ -4,3 +4,9 @@ export { createPrisma, Prisma, PrismaClient } from './client.js';
 export { ensureConnection, ingestInboundMessage, updateMessageStatus } from './ingest.js';
 export type { IngestResult } from './ingest.js';
 export { listConversations, listMessages } from './queries.js';
+export type {
+  Contact as DbContact,
+  Conversation as DbConversation,
+  Message as DbMessage,
+  WaConnection as DbWaConnection,
+} from '@prisma/client';

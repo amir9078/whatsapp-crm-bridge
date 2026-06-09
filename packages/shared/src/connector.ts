@@ -31,6 +31,8 @@ export interface InboundMessage {
   senderName?: string;
   /** ISO 8601. */
   timestamp: string;
+  /** True when delivered via WhatsApp's history sync (don't bump unread counters). */
+  historySync?: boolean;
 }
 
 /**

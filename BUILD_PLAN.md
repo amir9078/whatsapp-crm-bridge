@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M4.** M0–M3 ✅ — connector links to WhatsApp (live QR verified); messages persist idempotently to SQLite (3/3 tests pass); typecheck + lint green. Try it: `pnpm wa:dev`.
+> **Current status: ▶ Next = M6 (CRM adapter — the actual product).** M0–M5 ✅ — full app works end-to-end: server (3/3 integration tests) + web UI verified rendering a real WhatsApp QR from the real backend. Run it: `pnpm server:dev` + `pnpm web:dev`, open http://localhost:3000, scan, chat.
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -86,18 +86,20 @@ Claude will then:
 - [x] Tests (node:test, throwaway SQLite): duplicate ingest → 1 row & no unread double-count; reply lands in same conversation; fresh-client "restart" reads all back ordered.
 **Acceptance:** ✅ 3/3 tests pass; typecheck + lint green. (Live phone run: `pnpm wa:dev`.)
 
-### ☐ M4 — Server: API + real-time · ~1–2 sessions · _read `docs/03` §3–4, `docs/05`_
+### ✅ M4 — Server: API + real-time · DONE · _spec `docs/03` §3–4, `docs/05`_
 **Goal:** backend the UI can talk to.
-- [ ] `apps/server`: Fastify; run the connector in-process; Socket.IO gateway.
-- [ ] REST: list conversations, list messages, send message, connection status/QR.
-- [ ] Wire connector events → DB → Socket.IO push.
-**Acceptance:** with a WS test client, new messages arrive live; `POST /messages` sends and echoes back with status.
+- [x] `apps/server`: Fastify v5 + Socket.IO on one HTTP server; connector runs in-process (injected, so tests use a fake).
+- [x] REST `/api/v1`: health, connection (status+QR), conversations, messages, send (202 + optimistic-UI contract), mark-read.
+- [x] Connector events → DB (idempotent ingest) → WS broadcast (`connection.status`, `message.created`, `message.status`); own-echo dedupe; new WS clients get current state on connect.
+- [x] Bonus: connector now handles WhatsApp **history sync** (existing chats appear after pairing; no unread inflation).
+**Acceptance:** ✅ 3/3 integration tests (real HTTP + real Socket.IO client): live WS delivery, POST→send→202 echo w/ status, duplicate echo = no extra row, read receipts broadcast.
 
-### ☐ M5 — Frontend: the real UI · ~2–3 sessions · _reuse `docs/interface-mockup.html`_
+### ✅ M5 — Frontend: the real UI · DONE · _design from `docs/interface-mockup.html`_
 **Goal:** the mockup, made real and wired to the server.
-- [ ] `apps/web`: Next.js + Tailwind; port the mockup's layout/styles.
-- [ ] QR-login screen ↔ server; chat list + conversation from API; composer sends; Socket.IO live updates; optimistic send + status ticks.
-**Acceptance:** in the browser: scan QR → see your chats → send/receive in real time. **(You now have a working WhatsApp web client.)**
+- [x] `apps/web`: Next.js 15 + React 19; mockup's CSS ported directly (plain CSS instead of Tailwind — pixel-faithful, one less moving part).
+- [x] QR-login screen (live QR via socket + 5s polling safety net per docs/05 §6), chat list (search, unread badges, avatars), conversation view (bubbles, ticks ✓/✓✓/blue), composer with optimistic send reconciled by `clientMessageId`.
+- [x] Socket.IO live updates + catch-up refetch on socket (re)connect.
+**Acceptance:** ✅ `next build` clean; **verified live in a browser: real backend served a real scannable WhatsApp QR rendered in the UI** (screenshot-verified). ⏳ Hands-on step yours: scan with your phone → chats appear → send/receive. **(You now have a working WhatsApp web client.)**
 
 ### ☐ M6 — CRM adapter + HubSpot + sync worker · ~1–2 sessions · _read `docs/03` §5–6_
 **Goal:** the actual product — chats auto-logged to CRM.

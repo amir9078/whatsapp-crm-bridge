@@ -116,6 +116,15 @@ export class BaileysConnector implements WhatsAppConnector {
       }
     });
 
+    // Existing chats delivered by WhatsApp's multi-device history sync after pairing.
+    // Ingest dedupes by waMessageId, so replays are safe; historySync skips unread bumps.
+    sock.ev.on('messaging-history.set', ({ messages }) => {
+      for (const message of messages) {
+        const inbound = this.toInbound(message);
+        if (inbound) this.emit({ type: 'message', message: { ...inbound, historySync: true } });
+      }
+    });
+
     sock.ev.on('messages.update', (updates) => {
       for (const update of updates) {
         const id = update.key?.id ?? undefined;

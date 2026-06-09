@@ -20,7 +20,10 @@
     "connector:dev": "pnpm -F @wcb/shared build && tsx packages/connector/src/cli.ts",
     "db:generate": "pnpm -F @wcb/db generate",
     "db:migrate": "pnpm -F @wcb/db migrate:dev",
-    "wa:dev": "pnpm -r build && tsx scripts/wa-dev.ts",
+    "packages:build": "pnpm -F @wcb/shared -F @wcb/connector -F @wcb/db build",
+    "server:dev": "pnpm packages:build && pnpm -F @wcb/server dev",
+    "web:dev": "pnpm -F @wcb/shared build && pnpm -F @wcb/web dev",
+    "wa:dev": "pnpm packages:build && tsx scripts/wa-dev.ts",
     "test": "pnpm -r test"
   },
   "devDependencies": {

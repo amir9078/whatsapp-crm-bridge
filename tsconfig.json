@@ -3,6 +3,7 @@
   "references": [
     { "path": "packages/shared" },
     { "path": "packages/connector" },
-    { "path": "packages/db" }
+    { "path": "packages/db" },
+    { "path": "apps/server" }
   ]
 }
