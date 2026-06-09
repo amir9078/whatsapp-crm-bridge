@@ -1,0 +1,10 @@
+{
+  "name": "@wcb/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "echo \"[@wcb/web] Next.js app scaffolded in M5\"",
+    "dev": "echo \"[@wcb/web] dev server arrives in M5\"",
+    "test": "echo \"[@wcb/web] no tests yet\""
+  }
+}

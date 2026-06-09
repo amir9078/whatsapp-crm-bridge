@@ -1,0 +1,12 @@
+{
+  "name": "@wcb/shared",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo \"[@wcb/shared] build wired in M1\"",
+    "test": "echo \"[@wcb/shared] no tests yet\""
+  }
+}

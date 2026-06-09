@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+build/
+out/
+.next/
+*.tsbuildinfo
+
+# Environment & secrets — NEVER commit
+.env
+.env.*
+!.env.example
+
+# WhatsApp session credentials — NEVER commit (account-takeover risk)
+auth_state/
+*.auth.json
+baileys_store*/
+wa-session*/
+
+# Databases
+*.sqlite
+*.sqlite3
+*.db
+prisma/dev.db*
+prisma/*.db-journal
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Test
+coverage/

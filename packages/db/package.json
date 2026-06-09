@@ -1,0 +1,12 @@
+{
+  "name": "@wcb/db",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo \"[@wcb/db] build wired in M3\"",
+    "test": "echo \"[@wcb/db] no tests yet\""
+  }
+}

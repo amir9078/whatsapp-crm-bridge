@@ -1,0 +1,12 @@
+{
+  "name": "@wcb/crm",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "build": "echo \"[@wcb/crm] build wired in M6\"",
+    "test": "echo \"[@wcb/crm] no tests yet\""
+  }
+}

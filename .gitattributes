@@ -1,0 +1,8 @@
+# Normalize line endings to LF across platforms (this is a cross-OS project)
+* text=auto eol=lf
+
+# Binary / generated — leave untouched
+*.png binary
+*.jpg binary
+*.ico binary
+pnpm-lock.yaml -diff

@@ -1,0 +1,11 @@
+{
+  "name": "@wcb/server",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "echo \"[@wcb/server] scaffolded in M4\"",
+    "dev": "echo \"[@wcb/server] dev server arrives in M4\"",
+    "test": "echo \"[@wcb/server] no tests yet\""
+  }
+}
