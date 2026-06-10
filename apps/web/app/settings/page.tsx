@@ -2,7 +2,15 @@
 // Settings (M7): WhatsApp connection status, CRM (Odoo) credentials + sync options, logout.
 // CRM creds live in the DB via PUT /crm/integration — no .env editing required.
 import { useCallback, useEffect, useState } from 'react';
-import { getJson, isUnauthorized, postJson, putJson, type ConnectionDto } from '../../lib/api';
+import {
+  deleteJson,
+  downloadFile,
+  getJson,
+  isUnauthorized,
+  postJson,
+  putJson,
+  type ConnectionDto,
+} from '../../lib/api';
 import { clearToken } from '../../lib/auth';
 
 interface IntegrationDto {
@@ -128,6 +136,29 @@ export default function SettingsPage() {
     window.location.href = '/';
   };
 
+  const exportData = () =>
+    act(async () => {
+      await downloadFile(
+        '/api/v1/data/export',
+        `wcb-export-${new Date().toISOString().slice(0, 10)}.json`,
+      );
+      setNotice({ kind: 'ok', text: 'Export downloaded.' });
+    });
+
+  const wipeData = () => {
+    if (
+      !window.confirm(
+        'Delete ALL chats, contacts and CRM links stored by this app? ' +
+          'Your WhatsApp link and CRM settings are kept. This cannot be undone.',
+      )
+    )
+      return;
+    void act(async () => {
+      const res = await deleteJson<{ deleted: { messages: number } }>('/api/v1/data?confirm=ALL');
+      setNotice({ kind: 'ok', text: `Deleted — ${res.deleted.messages} messages wiped.` });
+    });
+  };
+
   const formReady = form.baseUrl && form.db && form.username && (form.apiKey || apiKeyHint);
 
   return (
@@ -233,6 +264,22 @@ export default function SettingsPage() {
           {notice && (
             <div className={notice.kind === 'ok' ? 'settings__ok' : 'crm-flash'}>{notice.text}</div>
           )}
+        </section>
+
+        <section>
+          <h2>Your data</h2>
+          <p className="settings__hint">
+            Everything lives in your own database. Export it as JSON anytime, or wipe the local
+            chat archive (your WhatsApp link and CRM settings are kept).
+          </p>
+          <div className="settings__actions" style={{ justifyContent: 'flex-start' }}>
+            <button className="crm-btn ghost" disabled={busy} onClick={() => void exportData()}>
+              Download export (JSON)
+            </button>
+            <button className="crm-btn danger" disabled={busy} onClick={wipeData}>
+              Delete all chat data…
+            </button>
+          </div>
         </section>
       </div>
     </div>

@@ -78,4 +78,21 @@ export async function putJson<T>(path: string, body: unknown): Promise<T> {
   return handle<T>(res, `PUT ${path}`);
 }
 
+export async function deleteJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { method: 'DELETE', headers: authHeaders() });
+  return handle<T>(res, `DELETE ${path}`);
+}
+
+/** Authenticated download (e.g. the data export) saved via a temporary object URL. */
+export async function downloadFile(path: string, filename: string): Promise<void> {
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
+  if (!res.ok) throw new ApiError(res.status, `GET ${path} → ${res.status}`);
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 export type { Message };

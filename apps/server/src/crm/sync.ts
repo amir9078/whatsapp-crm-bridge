@@ -13,6 +13,7 @@ import {
 import type { DbContact, DbCrmIntegration, DbLeadMapping } from '@wcb/db';
 import { buildTranscriptHtml } from '@wcb/crm';
 import type { CrmAdapter, CrmCredentials, WhatsAppEvent } from '@wcb/shared';
+import { openCreds } from './creds.js';
 
 export interface CrmSyncConfig {
   /** Create a CRM contact automatically when the phone has no match (default false). */
@@ -28,6 +29,8 @@ export interface CrmSyncWorkerDeps {
   emit: (event: WhatsAppEvent) => void;
   /** Adapter registry keyed by CrmType; tests inject fakes. */
   adapters: Record<string, CrmAdapter>;
+  /** APP_ENCRYPTION_KEY — needed to open sealed credentials (M8). */
+  encryptionKey?: string;
   defaultDebounceMs?: number;
   maxAttempts?: number;
   log?: (msg: string, err?: unknown) => void;
@@ -129,7 +132,7 @@ export class CrmSyncWorker {
       this.deps.log?.(`no adapter for CRM type "${integration.crmType}"`);
       return;
     }
-    const creds = JSON.parse(integration.credentials) as CrmCredentials;
+    const creds = openCreds(integration.credentials, this.deps.encryptionKey);
     const config = JSON.parse(integration.config || '{}') as CrmSyncConfig;
     if (config.debounceMs && config.debounceMs > 0) this.debounceMs = config.debounceMs;
 

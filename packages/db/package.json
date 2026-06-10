@@ -9,6 +9,7 @@
     "build": "prisma generate && tsc -b",
     "generate": "prisma generate",
     "migrate:dev": "prisma migrate dev",
+    "schema:postgres": "node scripts/postgres-schema.mjs",
     "test": "tsx --test src/ingest.test.ts"
   },
   "dependencies": {

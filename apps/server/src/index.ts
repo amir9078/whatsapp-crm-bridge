@@ -26,6 +26,8 @@ async function main(): Promise<void> {
     connector,
     waConnectionId,
     auth: { password: process.env.AUTH_PASSWORD, secret: process.env.JWT_SECRET },
+    encryptionKey: process.env.APP_ENCRYPTION_KEY || undefined,
+    retentionDays: Number(process.env.RETENTION_DAYS ?? 0) || undefined,
   });
   await connector.connect();
 
@@ -35,6 +37,9 @@ async function main(): Promise<void> {
   console.log('   Open the web app to scan the QR, or GET /api/v1/connection');
   if (!process.env.AUTH_PASSWORD) {
     console.warn('⚠ AUTH_PASSWORD not set — the UI and API are open to anyone who can reach this port.');
+  }
+  if (!process.env.APP_ENCRYPTION_KEY) {
+    console.warn('⚠ APP_ENCRYPTION_KEY not set — WhatsApp session + CRM credentials are stored unencrypted.');
   }
 }
 

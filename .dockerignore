@@ -1,0 +1,20 @@
+.git
+.claude
+node_modules
+**/node_modules
+**/dist
+apps/web/.next
+*.tsbuildinfo
+
+# secrets & local state never enter the image
+.env
+.env.*
+auth_state
+*.db
+packages/db/prisma/dev.db*
+packages/db/prisma/schema.postgres.prisma
+
+docs
+*.md
+!README.md
+coverage

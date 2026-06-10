@@ -17,6 +17,7 @@ import { toConversationDto, toSharedMessage } from './mappers.js';
 import { CrmSyncWorker } from './crm/sync.js';
 import { registerCrmRoutes } from './crm/routes.js';
 import { Auth, bearerToken, type AuthConfig } from './auth.js';
+import { purgeOldMessages, registerDataRoutes } from './data.js';
 
 export interface ServerDeps {
   prisma: PrismaClient;
@@ -28,6 +29,10 @@ export interface ServerDeps {
   crmDebounceMs?: number;
   /** Single-user auth (M7). No password → auth disabled (local dev). */
   auth?: AuthConfig;
+  /** APP_ENCRYPTION_KEY (M8) — seals CRM credentials at rest. */
+  encryptionKey?: string;
+  /** Purge messages older than N days (M8). 0/undefined = keep forever. */
+  retentionDays?: number;
 }
 
 export interface BuiltServer {
@@ -53,6 +58,8 @@ export async function buildServer({
   crmAdapters,
   crmDebounceMs,
   auth: authConfig,
+  encryptionKey,
+  retentionDays,
 }: ServerDeps): Promise<BuiltServer> {
   const app = Fastify({ logger: false });
   await app.register(cors, { origin: true });
@@ -87,10 +94,22 @@ export async function buildServer({
     prisma,
     emit,
     adapters,
+    encryptionKey,
     defaultDebounceMs: crmDebounceMs,
     log: (msg, err) => app.log.error({ err }, msg),
   });
   app.addHook('onClose', () => crmWorker.stop());
+
+  // Retention sweep (M8, docs/04 §5.5): purge old messages on boot and twice a day.
+  if (retentionDays && retentionDays > 0) {
+    const sweep = (): void => {
+      purgeOldMessages(prisma, retentionDays).catch((err: unknown) => app.log.error(err));
+    };
+    sweep();
+    const timer = setInterval(sweep, 12 * 60 * 60 * 1000);
+    timer.unref();
+    app.addHook('onClose', () => clearInterval(timer));
+  }
 
   // ── connector events → DB → WebSocket (the two-path inbound flow, docs/05 §2) ──
   async function handleConnectorEvent(event: ConnectorEvent): Promise<void> {
@@ -291,7 +310,8 @@ export async function buildServer({
     return reply.code(202).send(message);
   });
 
-  registerCrmRoutes(app, { prisma, worker: crmWorker, adapters });
+  registerCrmRoutes(app, { prisma, worker: crmWorker, adapters, encryptionKey });
+  registerDataRoutes(app, { prisma });
 
   return { app, io, crmWorker };
 }

@@ -2,8 +2,8 @@ import {
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeWASocket,
-  useMultiFileAuthState,
 } from '@whiskeysockets/baileys';
+import { useEncryptedMultiFileAuthState } from './auth-state.js';
 import type { WAMessage, WASocket, proto } from '@whiskeysockets/baileys';
 import pino from 'pino';
 import type {
@@ -24,6 +24,11 @@ type PinoLogger = ReturnType<typeof pino>;
 export interface BaileysConnectorOptions {
   /** Folder for the multi-file auth state (treat as a credential; gitignored). Default "auth_state". */
   authDir?: string;
+  /**
+   * 32-byte hex key → auth_state files are AES-256-GCM encrypted at rest (M8).
+   * Defaults to APP_ENCRYPTION_KEY so every entry point (server, CLI, scripts) is covered.
+   */
+  encryptionKey?: string;
   logger?: PinoLogger;
 }
 
@@ -39,10 +44,12 @@ export class BaileysConnector implements WhatsAppConnector {
   private status: ConnectionStatus = 'disconnected';
   private readonly handlers = new Set<ConnectorEventHandler>();
   private readonly authDir: string;
+  private readonly encryptionKey?: string;
   private readonly logger: PinoLogger;
 
   constructor(opts: BaileysConnectorOptions = {}) {
     this.authDir = opts.authDir ?? 'auth_state';
+    this.encryptionKey = opts.encryptionKey ?? (process.env.APP_ENCRYPTION_KEY || undefined);
     this.logger = opts.logger ?? pino({ level: 'silent' });
   }
 
@@ -67,7 +74,10 @@ export class BaileysConnector implements WhatsAppConnector {
   }
 
   async connect(): Promise<void> {
-    const { state, saveCreds } = await useMultiFileAuthState(this.authDir);
+    const { state, saveCreds } = await useEncryptedMultiFileAuthState(
+      this.authDir,
+      this.encryptionKey,
+    );
 
     let version: [number, number, number] | undefined;
     try {

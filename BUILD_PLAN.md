@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M8 (hardening & one-command self-host).** M0–M7 ✅ — Odoo sync (running-thread note, unmatched → create/link UI) + password login + settings screen (connect Odoo from the UI, test+save). 19/19 tests green (6 adapter, 3 db, 10 server). First CRM = Odoo (decision 2026-06-10); HubSpot et al. = backlog adapters.
+> **Current status: ▶ Next = M9 (open-source release polish).** M0–M8 ✅ — Odoo sync + auth/settings + at-rest encryption (creds + auth_state), data export/erasure/retention, Docker compose self-host + `docs/DEPLOY.md`. 32/32 tests green. ⚠ One user step pending: run `docker compose up -d --build` on a Docker machine/VPS to confirm M8 acceptance (no Docker on the dev machine).
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -115,13 +115,13 @@ Claude will then:
 - [x] Settings screen (`/settings`, ⚙ in rail): WhatsApp status; **Odoo connect form** (URL/db/username/API key — API-key auth, not OAuth) with **Test connection** + Save (key never echoed back, masked hint only); sync options (auto-create unknown contacts, debounce).
 **Acceptance:** ✅ log in, link WhatsApp and Odoo entirely from the UI; 3/3 auth tests (REST 401s, login flow, WS reject/accept); settings flow verified live in the browser (graceful error on unreachable Odoo).
 
-### ☐ M8 — Hardening & one-command self-host · ~1–2 sessions · _read `docs/04`_
+### ✅ M8 — Hardening & one-command self-host · DONE · _read `docs/04`_
 **Goal:** anyone can run it cheaply and safely.
-- [ ] Encrypt Baileys `auth_state` + CRM creds at rest (`APP_ENCRYPTION_KEY`).
-- [ ] Postgres option; `Dockerfile` + `docker-compose.yml` (web + server + db).
-- [ ] Data export + delete endpoints (`docs/04` §5.3); basic retention setting.
-- [ ] `docs/DEPLOY.md`: run on a $5–12/mo VPS.
-**Acceptance:** `docker compose up` runs the whole stack from a clean machine, documented.
+- [x] Encrypt at rest with `APP_ENCRYPTION_KEY` (AES-256-GCM, `@wcb/shared/crypto`): CRM creds sealed in the DB (`enc:v1:` payloads; legacy plaintext reads keep working) + Baileys `auth_state` via `useEncryptedMultiFileAuthState` (plaintext folders migrate in place; wrong key fails loudly, never silently re-pairs). 8 new tests.
+- [x] Postgres option: `pnpm -F @wcb/db schema:postgres` emits the postgres schema flavour (dev stays SQLite); single `Dockerfile` image + `docker-compose.yml` (db + server + web, `pg_data`/`wa_auth` volumes, healthcheck, first-boot `prisma db push`), `.dockerignore` keeps secrets/state out of the image.
+- [x] Data rights (`docs/04` §5.3): `GET /data/export` (credential-free JSON bundle), `DELETE /contacts/:id` (cascading erasure), `DELETE /data?confirm=ALL` (wipe, keeps WA link + CRM config); `RETENTION_DAYS` purge sweeper (§5.5). Settings UI: export download + delete-all.
+- [x] `docs/DEPLOY.md`: VPS guide (env table, HTTPS via Caddy, backup/update/troubleshooting).
+**Acceptance:** 32/32 tests; export verified live (29 conversations, no credentials in bundle). ⚠ `docker compose up` itself **not run here — no Docker on this machine**; verify on your VPS per `docs/DEPLOY.md` (your step).
 
 ### ☐ M9 — Open-source release polish · ~1 session
 **Goal:** a repo a stranger can star and run.

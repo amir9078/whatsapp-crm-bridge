@@ -27,6 +27,9 @@ wa-session*/
 prisma/dev.db*
 prisma/*.db-journal
 
+# Generated Postgres schema flavour (created by packages/db/scripts/postgres-schema.mjs)
+packages/db/prisma/schema.postgres.prisma
+
 # Logs
 *.log
 npm-debug.log*

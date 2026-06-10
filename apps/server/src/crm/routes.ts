@@ -15,11 +15,14 @@ import type { DbCrmIntegration } from '@wcb/db';
 import { odooCredentials } from '@wcb/crm';
 import type { CrmAdapter, CrmCredentials } from '@wcb/shared';
 import type { CrmSyncWorker } from './sync.js';
+import { openCreds, sealCreds } from './creds.js';
 
 export interface CrmRouteDeps {
   prisma: PrismaClient;
   worker: CrmSyncWorker;
   adapters: Record<string, CrmAdapter>;
+  /** APP_ENCRYPTION_KEY — when set, stored credentials are sealed at rest (M8). */
+  encryptionKey?: string;
 }
 
 const OdooCredsBody = z.object({
@@ -50,8 +53,8 @@ const LinkBody = z.object({
 });
 
 /** Never return the API key to the browser — coordinates plus a hint only. */
-function maskIntegration(row: DbCrmIntegration) {
-  const creds = row.credentials ? (JSON.parse(row.credentials) as CrmCredentials) : undefined;
+function maskIntegration(row: DbCrmIntegration, encryptionKey?: string) {
+  const creds = row.credentials ? openCreds(row.credentials, encryptionKey) : undefined;
   const key = creds?.accessToken ?? '';
   return {
     id: row.id,
@@ -69,7 +72,7 @@ function maskIntegration(row: DbCrmIntegration) {
 }
 
 export function registerCrmRoutes(app: FastifyInstance, deps: CrmRouteDeps): void {
-  const { prisma, worker, adapters } = deps;
+  const { prisma, worker, adapters, encryptionKey } = deps;
 
   const activeContext = async (): Promise<
     { integration: DbCrmIntegration; adapter: CrmAdapter; creds: CrmCredentials } | undefined
@@ -78,12 +81,12 @@ export function registerCrmRoutes(app: FastifyInstance, deps: CrmRouteDeps): voi
     if (!integration?.credentials) return undefined;
     const adapter = adapters[integration.crmType];
     if (!adapter) return undefined;
-    return { integration, adapter, creds: JSON.parse(integration.credentials) as CrmCredentials };
+    return { integration, adapter, creds: openCreds(integration.credentials, encryptionKey) };
   };
 
   app.get('/api/v1/crm/integration', async () => {
     const row = await getAnyIntegration(prisma);
-    return row ? maskIntegration(row) : null;
+    return row ? maskIntegration(row, encryptionKey) : null;
   });
 
   app.put('/api/v1/crm/integration', async (req, reply) => {
@@ -97,7 +100,7 @@ export function registerCrmRoutes(app: FastifyInstance, deps: CrmRouteDeps): voi
     if (!apiKey) {
       const existing = await getAnyIntegration(prisma);
       const stored = existing?.credentials
-        ? (JSON.parse(existing.credentials) as CrmCredentials)
+        ? openCreds(existing.credentials, encryptionKey)
         : undefined;
       apiKey = stored?.accessToken;
       if (!apiKey) return reply.code(400).send({ error: 'apiKey is required' });
@@ -105,11 +108,11 @@ export function registerCrmRoutes(app: FastifyInstance, deps: CrmRouteDeps): voi
 
     const row = await saveIntegration(prisma, {
       crmType,
-      credentials: JSON.stringify(odooCredentials({ ...credentials, apiKey })),
+      credentials: sealCreds(odooCredentials({ ...credentials, apiKey }), encryptionKey),
       config: JSON.stringify(config),
       status,
     });
-    return maskIntegration(row);
+    return maskIntegration(row, encryptionKey);
   });
 
   app.post('/api/v1/crm/integration/test', async (req, reply) => {
@@ -124,7 +127,7 @@ export function registerCrmRoutes(app: FastifyInstance, deps: CrmRouteDeps): voi
     if (!apiKey) {
       const existing = await getAnyIntegration(prisma);
       const stored = existing?.credentials
-        ? (JSON.parse(existing.credentials) as CrmCredentials)
+        ? openCreds(existing.credentials, encryptionKey)
         : undefined;
       apiKey = stored?.accessToken;
       if (!apiKey) return reply.code(400).send({ error: 'apiKey is required' });

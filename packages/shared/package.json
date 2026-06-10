@@ -9,12 +9,19 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./crypto": {
+      "types": "./dist/crypto.d.ts",
+      "import": "./dist/crypto.js"
     }
   },
   "files": ["dist"],
   "scripts": {
     "build": "tsc -b",
-    "test": "echo \"[@wcb/shared] no tests yet\""
+    "test": "tsx --test src/crypto.test.ts"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2"
   },
   "dependencies": {
     "zod": "^3.23.8"

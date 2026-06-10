@@ -660,6 +660,15 @@ button {
 .crm-btn.ghost:hover:not(:disabled) {
   border-color: var(--accent);
 }
+.crm-btn.danger {
+  background: #fff;
+  color: var(--danger);
+  border: 1px solid #f3c6c2;
+}
+.crm-btn.danger:hover:not(:disabled) {
+  background: #fdecea;
+  border-color: var(--danger);
+}
 .crm-btn:disabled {
   opacity: 0.55;
   cursor: default;

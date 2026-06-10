@@ -1,0 +1,60 @@
+# One-command self-host (M8): `docker compose up -d --build`
+# Reads .env in this directory for the ${...} values — see .env.example and docs/DEPLOY.md.
+name: whatsapp-crm-bridge
+
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: wcb
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-wcb}
+      POSTGRES_DB: wcb
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U wcb -d wcb']
+      interval: 5s
+      timeout: 3s
+      retries: 12
+
+  server:
+    build:
+      context: .
+      args:
+        # Must be the URL the BROWSER uses to reach the API (baked into the web bundle too).
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000}
+    image: whatsapp-crm-bridge
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    # First boot creates the tables, then the API + WhatsApp connector start.
+    command: >
+      sh -c "pnpm -F @wcb/db exec prisma db push --schema prisma/schema.postgres.prisma --skip-generate
+      && node apps/server/dist/index.js"
+    environment:
+      DATABASE_URL: postgresql://wcb:${POSTGRES_PASSWORD:-wcb}@db:5432/wcb
+      PORT: 4000
+      AUTH_PASSWORD: ${AUTH_PASSWORD:-}
+      JWT_SECRET: ${JWT_SECRET:-}
+      APP_ENCRYPTION_KEY: ${APP_ENCRYPTION_KEY:-}
+      RETENTION_DAYS: ${RETENTION_DAYS:-0}
+      WA_AUTH_DIR: /app/auth_state
+    volumes:
+      - wa_auth:/app/auth_state # the WhatsApp session credential (encrypted with APP_ENCRYPTION_KEY)
+    ports:
+      - '4000:4000'
+
+  web:
+    image: whatsapp-crm-bridge
+    restart: unless-stopped
+    depends_on:
+      - server
+    command: pnpm -F @wcb/web start
+    ports:
+      - '3000:3000'
+
+volumes:
+  pg_data:
+  wa_auth:

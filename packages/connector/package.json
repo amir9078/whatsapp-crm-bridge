@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
-    "test": "echo \"[@wcb/connector] no tests yet\""
+    "test": "tsx --test src/auth-state.test.ts"
   },
   "dependencies": {
     "@wcb/shared": "workspace:*",
@@ -16,6 +16,7 @@
     "qrcode-terminal": "^0.12.0"
   },
   "devDependencies": {
-    "@types/qrcode-terminal": "^0.12.2"
+    "@types/qrcode-terminal": "^0.12.2",
+    "tsx": "^4.19.2"
   }
 }
