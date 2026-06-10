@@ -244,6 +244,22 @@ button {
   writing-mode: vertical-rl;
   letter-spacing: 0.08em;
 }
+.rail-btn {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  color: #9fc3ba;
+  font-size: 19px;
+  text-decoration: none;
+  transition: 0.15s;
+  margin-bottom: 8px;
+}
+.rail-btn:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+}
 
 /* ── Chat list ── */
 .list {
@@ -707,4 +723,171 @@ button {
   font-size: 12.5px;
   line-height: 1.5;
   word-break: break-word;
+}
+
+/* ── Login (M7) ── */
+.login-form {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-form input {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 13px 15px;
+  font: inherit;
+  font-size: 14.5px;
+  outline: none;
+  text-align: center;
+}
+.login-form input:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.12);
+}
+.login-form .crm-btn {
+  padding: 12px;
+  font-size: 14px;
+}
+.login-flash {
+  margin: 14px 0 0;
+}
+
+/* ── Settings (M7) ── */
+.settings {
+  min-height: 100vh;
+  overflow-y: auto;
+  background: linear-gradient(120deg, #0a2e2a 0%, #0e3b36 55%, #11574e 100%);
+  padding: 40px 16px;
+}
+.settings__card {
+  max-width: 620px;
+  margin: 0 auto;
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 30px 34px;
+  box-shadow: 0 18px 50px rgba(5, 22, 20, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.settings__head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--line);
+  padding-bottom: 16px;
+}
+.settings__head h1 {
+  font-family: var(--display);
+  font-size: 24px;
+  font-weight: 700;
+  flex: 1;
+}
+.settings__back {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  color: var(--ink);
+  text-decoration: none;
+  font-size: 17px;
+}
+.settings__back:hover {
+  border-color: var(--accent);
+}
+.settings__logout {
+  flex: none;
+}
+.settings section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.settings h2 {
+  font-family: var(--display);
+  font-size: 16.5px;
+  font-weight: 700;
+}
+.settings__hint {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+.settings__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13.5px;
+  background: #f0faf4;
+  border: 1px solid #d6f0e1;
+  border-radius: 10px;
+  padding: 11px 14px;
+}
+.settings label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+.settings label input:not([type='checkbox']) {
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 400;
+  color: var(--ink);
+  outline: none;
+}
+.settings label input:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.12);
+}
+.settings__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 560px) {
+  .settings__grid {
+    grid-template-columns: 1fr;
+  }
+}
+.settings__check {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 9px !important;
+  font-weight: 500 !important;
+  padding-top: 22px;
+}
+.settings__check input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-600);
+}
+.settings__actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+}
+.settings__ok {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: #eafaf0;
+  border: 1px solid #d6f0e1;
+  color: #157a4b;
+  font-size: 12.5px;
+}
+.settings .crm-flash {
+  margin: 0;
 }

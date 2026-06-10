@@ -16,6 +16,7 @@ import { createCrmAdapters } from '@wcb/crm';
 import { toConversationDto, toSharedMessage } from './mappers.js';
 import { CrmSyncWorker } from './crm/sync.js';
 import { registerCrmRoutes } from './crm/routes.js';
+import { Auth, bearerToken, type AuthConfig } from './auth.js';
 
 export interface ServerDeps {
   prisma: PrismaClient;
@@ -25,6 +26,8 @@ export interface ServerDeps {
   crmAdapters?: Record<string, CrmAdapter>;
   /** Sync debounce override (tests use a few ms). */
   crmDebounceMs?: number;
+  /** Single-user auth (M7). No password → auth disabled (local dev). */
+  auth?: AuthConfig;
 }
 
 export interface BuiltServer {
@@ -38,17 +41,40 @@ const SendBody = z.object({
   clientMessageId: z.string().optional(),
 });
 
+const LoginBody = z.object({ password: z.string().min(1) });
+
+/** Routes reachable without a token (the login flow itself + liveness probes). */
+const PUBLIC_PATHS = new Set(['/api/v1/health', '/api/v1/auth/status', '/api/v1/auth/login']);
+
 export async function buildServer({
   prisma,
   connector,
   waConnectionId,
   crmAdapters,
   crmDebounceMs,
+  auth: authConfig,
 }: ServerDeps): Promise<BuiltServer> {
   const app = Fastify({ logger: false });
   await app.register(cors, { origin: true });
 
+  const auth = new Auth(authConfig);
+
+  // Everything under /api/v1 needs a bearer token while auth is enabled (docs/04 §2).
+  app.addHook('onRequest', async (req, reply) => {
+    if (!auth.enabled) return;
+    const path = req.url.split('?')[0] ?? '';
+    if (!path.startsWith('/api/') || PUBLIC_PATHS.has(path)) return;
+    if (!auth.verify(bearerToken(req.headers.authorization))) {
+      return reply.code(401).send({ error: 'unauthorized' });
+    }
+  });
+
   const io = new IOServer(app.server, { cors: { origin: true } });
+  io.use((socket, next) => {
+    const token = (socket.handshake.auth as { token?: string } | undefined)?.token;
+    next(auth.verify(token) ? undefined : new Error('unauthorized'));
+  });
+
   let lastQr: string | undefined;
 
   const emit = (event: WhatsAppEvent): void => {
@@ -148,6 +174,18 @@ export async function buildServer({
 
   // ── REST API (docs/03 §3) ──
   app.get('/api/v1/health', async () => ({ ok: true }));
+
+  // ── Auth (M7) ──
+  app.get('/api/v1/auth/status', async () => ({ authRequired: auth.enabled }));
+
+  app.post('/api/v1/auth/login', async (req, reply) => {
+    if (!auth.enabled) return reply.code(409).send({ error: 'auth is disabled' });
+    const parsed = LoginBody.safeParse(req.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid body' });
+    const session = auth.login(parsed.data.password);
+    if (!session) return reply.code(401).send({ error: 'wrong password' });
+    return session; // { token, expiresAt } — client sends it as a Bearer header + socket auth
+  });
 
   app.get('/api/v1/connection', async () => ({
     id: waConnectionId,

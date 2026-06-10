@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M7 (auth & settings).** M0–M6 ✅ — chats now auto-log to **Odoo** (running-thread note per conversation, unmatched → create/link in the UI). 16/16 tests green (6 adapter, 3 db, 7 server). First CRM = Odoo (decision 2026-06-10); HubSpot et al. = backlog adapters.
+> **Current status: ▶ Next = M8 (hardening & one-command self-host).** M0–M7 ✅ — Odoo sync (running-thread note, unmatched → create/link UI) + password login + settings screen (connect Odoo from the UI, test+save). 19/19 tests green (6 adapter, 3 db, 10 server). First CRM = Odoo (decision 2026-06-10); HubSpot et al. = backlog adapters.
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -108,11 +108,12 @@ Claude will then:
 - [x] UI: CRM context panel (matched record + open-in-Odoo link + sync status/chips); unmatched → "Create in Odoo" / search + "Link existing". REST: `/crm/integration` (+test), `/conversations/:id/crm` (+link/create/sync), `/crm/contacts/search`.
 **Acceptance:** ✅ a conversation appears as (and keeps updating) ONE note on the right Odoo contact; unmatched numbers are flagged with create/link actions; 7/7 server integration tests (live WS `crm.sync.status`, outage→retry, no note flooding).
 
-### ☐ M7 — Auth & settings · ~1–2 sessions · _read `docs/04` §2_
+### ✅ M7 — Auth & settings · DONE · _read `docs/04` §2_
 **Goal:** safe to actually use; connect CRM from the UI.
-- [ ] Simple login (single-user password or JWT; pluggable for Clerk later).
-- [ ] Settings screen: connect WhatsApp, connect CRM via OAuth, choose note strategy.
-**Acceptance:** log in, link WhatsApp and HubSpot entirely from the UI.
+- [x] Single-user login: `AUTH_PASSWORD` env → HMAC-signed expiring bearer token (no deps; pluggable for Clerk later). Guards all `/api/v1/*` (except health/login/status) **and** Socket.IO handshake. Unset password = auth off (local dev) + startup warning.
+- [x] Web: login screen + auth gate (token in localStorage; → same-origin proxy + HttpOnly cookie in M8), expired-token auto-logout, socket re-auth after login.
+- [x] Settings screen (`/settings`, ⚙ in rail): WhatsApp status; **Odoo connect form** (URL/db/username/API key — API-key auth, not OAuth) with **Test connection** + Save (key never echoed back, masked hint only); sync options (auto-create unknown contacts, debounce).
+**Acceptance:** ✅ log in, link WhatsApp and Odoo entirely from the UI; 3/3 auth tests (REST 401s, login flow, WS reject/accept); settings flow verified live in the browser (graceful error on unreachable Odoo).
 
 ### ☐ M8 — Hardening & one-command self-host · ~1–2 sessions · _read `docs/04`_
 **Goal:** anyone can run it cheaply and safely.

@@ -1,12 +1,20 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Message } from '@wcb/shared';
-import { getJson, postJson, type ConnectionDto, type ConversationDto } from '../lib/api';
+import {
+  getJson,
+  isUnauthorized,
+  postJson,
+  type ConnectionDto,
+  type ConversationDto,
+} from '../lib/api';
+import { clearToken, getToken } from '../lib/auth';
 import { getSocket } from '../lib/socket';
 import { QrScreen } from '../components/QrScreen';
 import { ChatList } from '../components/ChatList';
 import { ConversationView } from '../components/ConversationView';
 import { CrmPanel } from '../components/CrmPanel';
+import { LoginScreen } from '../components/LoginScreen';
 
 function upsert(list: Message[], incoming: Message): Message[] {
   const i = list.findIndex(
@@ -22,7 +30,45 @@ function upsert(list: Message[], incoming: Message): Message[] {
   return [...list, incoming].sort((a, b) => a.timestamp.localeCompare(b.timestamp));
 }
 
+/** Auth gate (M7): ask the server if a password is required, then render login or the app. */
 export default function Home() {
+  const [gate, setGate] = useState<'checking' | 'login' | 'ok'>('checking');
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const { authRequired } = await getJson<{ authRequired: boolean }>('/api/v1/auth/status');
+        if (!authRequired || !getToken()) {
+          setGate(authRequired ? 'login' : 'ok');
+          return;
+        }
+        try {
+          await getJson('/api/v1/connection'); // probe: is the stored token still valid?
+          setGate('ok');
+        } catch (err) {
+          if (isUnauthorized(err)) {
+            clearToken();
+            setGate('login');
+          } else {
+            setGate('ok'); // server hiccup — the app shell shows its offline state
+          }
+        }
+      } catch {
+        setGate('ok'); // can't reach the server at all — fall through to offline UI
+      }
+    })();
+  }, []);
+
+  if (gate === 'checking') {
+    return <QrScreen status="connecting" qr={undefined} />;
+  }
+  if (gate === 'login') {
+    return <LoginScreen onSuccess={() => setGate('ok')} />;
+  }
+  return <AppShell />;
+}
+
+function AppShell() {
   const [connStatus, setConnStatus] = useState('connecting');
   const [qr, setQr] = useState<string>();
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
@@ -58,7 +104,13 @@ export default function Home() {
       const c = await getJson<ConnectionDto>('/api/v1/connection');
       setConnStatus(c.status);
       setQr(c.qr);
-    } catch {
+    } catch (err) {
+      if (isUnauthorized(err)) {
+        // Token expired mid-session → back through the auth gate.
+        clearToken();
+        window.location.reload();
+        return;
+      }
       setConnStatus('server_offline');
     }
   }, []);
@@ -162,6 +214,9 @@ export default function Home() {
       <nav className="rail">
         <div className="logo">C</div>
         <div className="spacer" />
+        <a className="rail-btn" href="/settings" title="Settings">
+          ⚙
+        </a>
         <div className="conn-pill">CONNECTED</div>
       </nav>
       <ChatList

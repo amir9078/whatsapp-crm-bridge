@@ -21,13 +21,21 @@ async function main(): Promise<void> {
     authDir: process.env.WA_AUTH_DIR ?? resolve(root, 'auth_state'),
   });
 
-  const { app } = await buildServer({ prisma, connector, waConnectionId });
+  const { app } = await buildServer({
+    prisma,
+    connector,
+    waConnectionId,
+    auth: { password: process.env.AUTH_PASSWORD, secret: process.env.JWT_SECRET },
+  });
   await connector.connect();
 
   const port = Number(process.env.PORT ?? 4000);
   await app.listen({ port, host: '0.0.0.0' });
   console.log(`✅ server listening on http://localhost:${port}  (API: /api/v1, WS: socket.io)`);
   console.log('   Open the web app to scan the QR, or GET /api/v1/connection');
+  if (!process.env.AUTH_PASSWORD) {
+    console.warn('⚠ AUTH_PASSWORD not set — the UI and API are open to anyone who can reach this port.');
+  }
 }
 
 main().catch((err: unknown) => {

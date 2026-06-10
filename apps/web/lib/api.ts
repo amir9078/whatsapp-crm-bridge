@@ -1,4 +1,5 @@
 import type { Message } from '@wcb/shared';
+import { getToken } from './auth';
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000';
 
@@ -23,20 +24,58 @@ export interface ConnectionDto {
   qr?: string;
 }
 
-export async function getJson<T>(path: string): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`);
-  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`);
+export class ApiError extends Error {
+  constructor(
+    readonly status: number,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
+
+export const isUnauthorized = (err: unknown): boolean =>
+  err instanceof ApiError && err.status === 401;
+
+function authHeaders(): Record<string, string> {
+  const token = getToken();
+  return token ? { authorization: `Bearer ${token}` } : {};
+}
+
+async function handle<T>(res: Response, label: string): Promise<T> {
+  if (!res.ok) {
+    let detail = '';
+    try {
+      detail = ((await res.json()) as { error?: string }).error ?? '';
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, detail || `${label} → ${res.status}`);
+  }
   return (await res.json()) as T;
+}
+
+export async function getJson<T>(path: string): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, { headers: authHeaders() });
+  return handle<T>(res, `GET ${path}`);
 }
 
 export async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(`${API_URL}${path}`, {
     method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    headers: { 'content-type': 'application/json', ...authHeaders() },
     body: JSON.stringify(body),
   });
-  if (!res.ok) throw new Error(`POST ${path} → ${res.status}`);
-  return (await res.json()) as T;
+  return handle<T>(res, `POST ${path}`);
+}
+
+export async function putJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(body),
+  });
+  return handle<T>(res, `PUT ${path}`);
 }
 
 export type { Message };
