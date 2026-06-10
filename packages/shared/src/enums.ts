@@ -34,8 +34,12 @@ export type MessageType = z.infer<typeof MessageType>;
 export const MessageStatus = z.enum(['queued', 'sent', 'delivered', 'read', 'failed']);
 export type MessageStatus = z.infer<typeof MessageStatus>;
 
-export const CrmType = z.enum(['hubspot', 'salesforce', 'zoho', 'pipedrive', 'custom']);
+export const CrmType = z.enum(['odoo', 'hubspot', 'salesforce', 'zoho', 'pipedrive', 'custom']);
 export type CrmType = z.infer<typeof CrmType>;
+
+/** Result of resolving a WhatsApp contact to a CRM record (docs/03 §5). */
+export const CrmMatchStatus = z.enum(['matched', 'unmatched', 'ambiguous']);
+export type CrmMatchStatus = z.infer<typeof CrmMatchStatus>;
 
 /** State of syncing a message/conversation to a CRM. */
 export const SyncStatus = z.enum(['pending', 'success', 'failed', 'dead_letter']);

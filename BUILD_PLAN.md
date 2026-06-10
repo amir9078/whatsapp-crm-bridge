@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M6 (CRM adapter — the actual product).** M0–M5 ✅ — full app works end-to-end: server (3/3 integration tests) + web UI verified rendering a real WhatsApp QR from the real backend. Run it: `pnpm server:dev` + `pnpm web:dev`, open http://localhost:3000, scan, chat.
+> **Current status: ▶ Next = M7 (auth & settings).** M0–M6 ✅ — chats now auto-log to **Odoo** (running-thread note per conversation, unmatched → create/link in the UI). 16/16 tests green (6 adapter, 3 db, 7 server). First CRM = Odoo (decision 2026-06-10); HubSpot et al. = backlog adapters.
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -101,12 +101,12 @@ Claude will then:
 - [x] Socket.IO live updates + catch-up refetch on socket (re)connect.
 **Acceptance:** ✅ `next build` clean; **verified live in a browser: real backend served a real scannable WhatsApp QR rendered in the UI** (screenshot-verified). ⏳ Hands-on step yours: scan with your phone → chats appear → send/receive. **(You now have a working WhatsApp web client.)**
 
-### ☐ M6 — CRM adapter + HubSpot + sync worker · ~1–2 sessions · _read `docs/03` §5–6_
-**Goal:** the actual product — chats auto-logged to CRM.
-- [ ] `packages/crm`: HubSpot adapter (OAuth, find/create contact, append note).
-- [ ] Lead matching (phone → record, or flag `unmatched`); sync worker with **running-thread note** + debounce + `sync_log` idempotency.
-- [ ] UI: CRM context panel shows matched record + sync status; "unmatched → create/link" action.
-**Acceptance:** a conversation appears as (and keeps updating) a note on the right HubSpot contact; unmatched numbers are flagged in the UI.
+### ✅ M6 — CRM adapter + **Odoo** + sync worker · DONE · _read `docs/03` §5–6_
+**Goal:** the actual product — chats auto-logged to CRM. *(First CRM switched HubSpot → Odoo per product decision; HubSpot moved to backlog. `CrmAdapter` now supports both OAuth2 and API-key CRMs.)*
+- [x] `packages/crm`: **Odoo adapter** — JSON-RPC external API (base URL + db + username + API key), find/create `res.partner` with format-tolerant phone matching, notes via chatter `message_post`, running note updated in place via `mail.message.write`. 6/6 adapter tests vs a fake Odoo server.
+- [x] Lead matching (phone → record; `unmatched`/`ambiguous` flagged, never guessed); `CrmSyncWorker` with **running-thread note** + per-conversation debounce + `sync_log` idempotency (UNIQUE messageId+integrationId) + exponential-backoff retry → dead-letter. New tables: `CrmIntegration`, `LeadMapping`, `SyncLog` (migration `m6_crm`).
+- [x] UI: CRM context panel (matched record + open-in-Odoo link + sync status/chips); unmatched → "Create in Odoo" / search + "Link existing". REST: `/crm/integration` (+test), `/conversations/:id/crm` (+link/create/sync), `/crm/contacts/search`.
+**Acceptance:** ✅ a conversation appears as (and keeps updating) ONE note on the right Odoo contact; unmatched numbers are flagged with create/link actions; 7/7 server integration tests (live WS `crm.sync.status`, outage→retry, no note flooding).
 
 ### ☐ M7 — Auth & settings · ~1–2 sessions · _read `docs/04` §2_
 **Goal:** safe to actually use; connect CRM from the UI.
@@ -131,10 +131,10 @@ Claude will then:
 ---
 
 ## Backlog (after v0.1.0 — only if you want)
-- More CRM adapters (Zoho, Pipedrive, Salesforce) — each is *just one adapter* (`docs/03` §6).
+- More CRM adapters (HubSpot, Zoho, Pipedrive, Salesforce) — each is *just one adapter* (`docs/03` §6).
 - AI summaries / suggested replies (`docs/02` §8).
 - Multi-tenant SaaS mode (`docs/04` §4) — only if you sell it to other businesses.
 
 ## Definition of done — v0.1.0
-☐ QR login ☐ live chat sync (send/receive) ☐ HubSpot note logging ☐ login + settings
+☐ QR login ☐ live chat sync (send/receive) ☐ CRM (Odoo) note logging ☐ login + settings
 ☐ Docker self-host ☐ export/delete ☐ README + disclaimer + CI ☐ public, tagged release.

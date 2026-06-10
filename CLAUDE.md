@@ -28,7 +28,7 @@ apps/server      Fastify + Socket.IO; runs the connector, API, real-time
 packages/shared  canonical types + WhatsAppConnector & CrmAdapter interfaces (zod)
 packages/db      Prisma schema + client
 packages/connector  Baileys wrapper (session, QR, send, events)
-packages/crm     CrmAdapter interface + adapters (hubspot, ...)
+packages/crm     CrmAdapter implementations (odoo, ...) + transcript builder
 docs/            01–07 specs + interface-mockup.html
 ```
 

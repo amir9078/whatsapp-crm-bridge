@@ -6,6 +6,7 @@ import { getSocket } from '../lib/socket';
 import { QrScreen } from '../components/QrScreen';
 import { ChatList } from '../components/ChatList';
 import { ConversationView } from '../components/ConversationView';
+import { CrmPanel } from '../components/CrmPanel';
 
 function upsert(list: Message[], incoming: Message): Message[] {
   const i = list.findIndex(
@@ -157,7 +158,7 @@ export default function Home() {
 
   const selected = conversations.find((c) => c.id === selectedId) ?? null;
   return (
-    <div className="app">
+    <div className={`app${selected ? ' with-crm' : ''}`}>
       <nav className="rail">
         <div className="logo">C</div>
         <div className="spacer" />
@@ -169,13 +170,16 @@ export default function Home() {
         onSelect={(id) => void openConversation(id)}
       />
       {selected ? (
-        <ConversationView conversation={selected} messages={messages} onSend={send} />
+        <>
+          <ConversationView conversation={selected} messages={messages} onSend={send} />
+          <CrmPanel conversationId={selected.id} />
+        </>
       ) : (
         <main className="conv">
           <div className="conv-empty">
             <div>
               <div className="big">Select a conversation</div>
-              Your chats are synced in real time and will be logged to your CRM (coming in M6).
+              Your chats are synced in real time and logged to your CRM automatically.
             </div>
           </div>
         </main>

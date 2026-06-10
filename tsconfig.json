@@ -4,6 +4,7 @@
     { "path": "packages/shared" },
     { "path": "packages/connector" },
     { "path": "packages/db" },
+    { "path": "packages/crm" },
     { "path": "apps/server" }
   ]
 }

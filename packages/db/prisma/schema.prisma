@@ -29,6 +29,7 @@ model Contact {
   createdAt   DateTime @default(now())
 
   conversations Conversation[]
+  leadMappings  LeadMapping[]
 }
 
 model Conversation {
@@ -42,6 +43,7 @@ model Conversation {
   contact      Contact      @relation(fields: [contactId], references: [id])
   waConnection WaConnection @relation(fields: [waConnectionId], references: [id])
   messages     Message[]
+  syncLogs     SyncLog[]
 
   @@unique([contactId, waConnectionId])
   @@index([lastMessageAt])
@@ -64,7 +66,65 @@ model Message {
   createdAt       DateTime @default(now())
 
   conversation Conversation @relation(fields: [conversationId], references: [id])
+  syncLogs     SyncLog[]
 
   @@unique([conversationId, waMessageId])
   @@index([conversationId, timestamp])
+}
+
+// ── CRM sync (M6) — docs/03 §2, §5–6 ──
+
+model CrmIntegration {
+  id          String   @id @default(uuid())
+  crmType     String // 'odoo' | 'hubspot' | ... (CrmType in @wcb/shared)
+  /// JSON-serialized CrmCredentials (encrypted at rest in M8).
+  credentials String?
+  /// JSON sync config: { autoCreate, debounceMs, transcriptLimit }.
+  config      String   @default("{}")
+  status      String   @default("active") // 'active' | 'disabled'
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  leadMappings LeadMapping[]
+  syncLogs     SyncLog[]
+}
+
+model LeadMapping {
+  id               String    @id @default(uuid())
+  contactId        String
+  crmIntegrationId String
+  status           String    @default("unmatched") // 'matched' | 'unmatched' | 'ambiguous'
+  crmRecordType    String? // 'contact' | 'lead' | 'deal'
+  crmRecordId      String?
+  crmRecordName    String?
+  crmRecordUrl     String?
+  /// The running-thread note id (docs/03 §6.2) — one note per conversation, updated in place.
+  crmNoteId        String?
+  lastSyncedAt     DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  contact        Contact        @relation(fields: [contactId], references: [id])
+  crmIntegration CrmIntegration @relation(fields: [crmIntegrationId], references: [id])
+
+  @@unique([contactId, crmIntegrationId])
+}
+
+model SyncLog {
+  id               String    @id @default(uuid())
+  messageId        String
+  conversationId   String
+  crmIntegrationId String
+  status           String // 'pending' | 'success' | 'failed' | 'dead_letter' (SyncStatus)
+  attempts         Int       @default(0)
+  lastError        String?
+  syncedAt         DateTime?
+  createdAt        DateTime  @default(now())
+
+  message        Message        @relation(fields: [messageId], references: [id])
+  conversation   Conversation   @relation(fields: [conversationId], references: [id])
+  crmIntegration CrmIntegration @relation(fields: [crmIntegrationId], references: [id])
+
+  @@unique([messageId, crmIntegrationId])
+  @@index([conversationId, status])
 }

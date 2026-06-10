@@ -9,6 +9,7 @@
   "references": [
     { "path": "../../packages/shared" },
     { "path": "../../packages/db" },
-    { "path": "../../packages/connector" }
+    { "path": "../../packages/connector" },
+    { "path": "../../packages/crm" }
   ]
 }

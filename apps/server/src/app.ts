@@ -11,18 +11,26 @@ import {
   Prisma,
   type PrismaClient,
 } from '@wcb/db';
-import type { ConnectorEvent, WhatsAppConnector, WhatsAppEvent } from '@wcb/shared';
+import type { ConnectorEvent, CrmAdapter, WhatsAppConnector, WhatsAppEvent } from '@wcb/shared';
+import { createCrmAdapters } from '@wcb/crm';
 import { toConversationDto, toSharedMessage } from './mappers.js';
+import { CrmSyncWorker } from './crm/sync.js';
+import { registerCrmRoutes } from './crm/routes.js';
 
 export interface ServerDeps {
   prisma: PrismaClient;
   connector: WhatsAppConnector;
   waConnectionId: string;
+  /** CRM adapter registry override (tests inject fakes). Defaults to the real adapters. */
+  crmAdapters?: Record<string, CrmAdapter>;
+  /** Sync debounce override (tests use a few ms). */
+  crmDebounceMs?: number;
 }
 
 export interface BuiltServer {
   app: FastifyInstance;
   io: IOServer;
+  crmWorker: CrmSyncWorker;
 }
 
 const SendBody = z.object({
@@ -30,7 +38,13 @@ const SendBody = z.object({
   clientMessageId: z.string().optional(),
 });
 
-export async function buildServer({ prisma, connector, waConnectionId }: ServerDeps): Promise<BuiltServer> {
+export async function buildServer({
+  prisma,
+  connector,
+  waConnectionId,
+  crmAdapters,
+  crmDebounceMs,
+}: ServerDeps): Promise<BuiltServer> {
   const app = Fastify({ logger: false });
   await app.register(cors, { origin: true });
 
@@ -40,6 +54,17 @@ export async function buildServer({ prisma, connector, waConnectionId }: ServerD
   const emit = (event: WhatsAppEvent): void => {
     io.emit(event.type, event);
   };
+
+  // CRM sync runs in the background off message events — never blocks delivery (docs/03 §6.3).
+  const adapters = crmAdapters ?? createCrmAdapters();
+  const crmWorker = new CrmSyncWorker({
+    prisma,
+    emit,
+    adapters,
+    defaultDebounceMs: crmDebounceMs,
+    log: (msg, err) => app.log.error({ err }, msg),
+  });
+  app.addHook('onClose', () => crmWorker.stop());
 
   // ── connector events → DB → WebSocket (the two-path inbound flow, docs/05 §2) ──
   async function handleConnectorEvent(event: ConnectorEvent): Promise<void> {
@@ -81,6 +106,7 @@ export async function buildServer({ prisma, connector, waConnectionId }: ServerD
             schemaVersion: 1,
           });
         }
+        crmWorker.notify(result.conversationId);
         break;
       }
       case 'message-status': {
@@ -223,8 +249,11 @@ export async function buildServer({ prisma, connector, waConnectionId }: ServerD
       ts: Date.now(),
       schemaVersion: 1,
     });
+    crmWorker.notify(id);
     return reply.code(202).send(message);
   });
 
-  return { app, io };
+  registerCrmRoutes(app, { prisma, worker: crmWorker, adapters });
+
+  return { app, io, crmWorker };
 }

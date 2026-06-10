@@ -8,11 +8,12 @@
     "build": "tsc -b",
     "dev": "tsx watch src/index.ts",
     "start": "node dist/index.js",
-    "test": "tsx --test src/app.test.ts"
+    "test": "tsx --test src/app.test.ts src/crm.test.ts"
   },
   "dependencies": {
     "@fastify/cors": "^10.0.1",
     "@wcb/connector": "workspace:*",
+    "@wcb/crm": "workspace:*",
     "@wcb/db": "workspace:*",
     "@wcb/shared": "workspace:*",
     "fastify": "^5.2.0",
