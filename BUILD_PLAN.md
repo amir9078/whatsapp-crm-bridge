@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: ▶ Next = M9 (open-source release polish).** M0–M8 ✅ — Odoo sync + auth/settings + at-rest encryption (creds + auth_state), data export/erasure/retention, Docker compose self-host + `docs/DEPLOY.md`. 32/32 tests green. ⚠ One user step pending: run `docker compose up -d --build` on a Docker machine/VPS to confirm M8 acceptance (no Docker on the dev machine).
+> **Current status: 🏁 ALL MILESTONES DONE (M0–M9) — v0.1.0 tagged locally.** Remaining = your two steps: (1) push to GitHub (repo + `main` + `v0.1.0` tag, swap `YOUR_USERNAME` placeholders, create the Release from CHANGELOG), (2) verify `docker compose up -d --build` on a Docker machine/VPS (none here). After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -123,11 +123,11 @@ Claude will then:
 - [x] `docs/DEPLOY.md`: VPS guide (env table, HTTPS via Caddy, backup/update/troubleshooting).
 **Acceptance:** 32/32 tests; export verified live (29 conversations, no credentials in bundle). ⚠ `docker compose up` itself **not run here — no Docker on this machine**; verify on your VPS per `docs/DEPLOY.md` (your step).
 
-### ☐ M9 — Open-source release polish · ~1 session
+### ✅ M9 — Open-source release polish · DONE (publish = your step)
 **Goal:** a repo a stranger can star and run.
-- [ ] README: screenshots/GIF, quick-start, the disclaimer, features.
-- [ ] GitHub Actions CI (lint + test + build); issue/PR templates; `v0.1.0` tag + release notes.
-**Acceptance:** fresh clone → follow README → running app. Tagged release published.
+- [x] README rewritten for v0.1.0: features (Odoo, auth, encryption, data rights, Docker), real 5-minute quick-start, Docker section, "Adding a CRM adapter" contributor guide, disclaimer kept front-and-center. *(No real screenshots on purpose — your inbox is personal data; the interactive mockup in `docs/` is the visual. Add a redacted screenshot later if you like.)*
+- [x] GitHub Actions CI (`.github/workflows/ci.yml`: install → prisma generate → lint → typecheck → test → build); issue forms (bug/feature + security contact-link, no blank issues) + PR template; `CHANGELOG.md`; **`v0.1.0` tag created locally**.
+**Acceptance:** fresh clone → README quick-start → running app (commands verified on this machine). ⚠ Publishing is yours: create the GitHub repo, push `main` + the `v0.1.0` tag, then replace `YOUR_USERNAME` placeholders (README CI badge comment, CHANGELOG link, issue config.yml) and create the GitHub Release from the tag using the CHANGELOG notes.
 
 ---
 
@@ -137,5 +137,6 @@ Claude will then:
 - Multi-tenant SaaS mode (`docs/04` §4) — only if you sell it to other businesses.
 
 ## Definition of done — v0.1.0
-☐ QR login ☐ live chat sync (send/receive) ☐ CRM (Odoo) note logging ☐ login + settings
-☐ Docker self-host ☐ export/delete ☐ README + disclaimer + CI ☐ public, tagged release.
+✅ QR login ✅ live chat sync (send/receive) ✅ CRM (Odoo) note logging ✅ login + settings
+✅ Docker self-host (compose written; live run = your verify) ✅ export/delete ✅ README + disclaimer + CI
+⚠ public, tagged release — tag exists locally; **push + GitHub Release = your step.**

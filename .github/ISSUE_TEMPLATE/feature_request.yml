@@ -1,0 +1,35 @@
+name: 💡 Feature request
+description: Suggest an improvement or a new CRM adapter.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      placeholder: As a sales rep using Zoho, I want…
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: How should it work? UI, API, config…
+    validations:
+      required: true
+  - type: input
+    id: crm
+    attributes:
+      label: CRM (for adapter requests)
+      description: Which CRM, and does it offer OAuth2 or API-key auth? See "Adding a CRM adapter" in the README — PRs welcome!
+      placeholder: e.g. Zoho CRM, OAuth2
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      options:
+        - label: This is NOT a bulk-messaging / mass-marketing feature (those are out of scope by design — see the README disclaimer).
+          required: true

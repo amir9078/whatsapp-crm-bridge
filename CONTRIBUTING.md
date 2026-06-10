@@ -7,7 +7,13 @@ Thanks for your interest! This project is built in small, self-contained milesto
 
 - Node ≥ 20 and pnpm (`corepack enable`).
 - `pnpm install`
-- `pnpm lint` and `pnpm test` should pass before you push.
+- `pnpm lint`, `pnpm typecheck`, and `pnpm test` should pass before you push (CI enforces
+  all three plus the build).
+
+## Most-wanted contribution: CRM adapters
+
+Each CRM is one adapter file + one test — see **"Adding a CRM adapter"** in the README and
+use `packages/crm/src/odoo/` (adapter + fake-server test) as the template.
 
 ## Workflow
 

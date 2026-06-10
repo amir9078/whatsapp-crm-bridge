@@ -1,0 +1,75 @@
+name: 🐛 Bug report
+description: Something broke — help us reproduce it.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the report! Two reminders before you start:
+        - **Never paste secrets** — no `.env` values, API keys, tokens, or `auth_state` contents.
+        - Phone numbers and chat content in logs are personal data — redact them.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, what happened instead?
+      placeholder: After scanning the QR, the chat list stays empty even though…
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. pnpm server:dev + pnpm web:dev
+        2. Scan QR
+        3. …
+    validations:
+      required: true
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: How are you running it?
+      options:
+        - Local dev (pnpm server:dev + web:dev)
+        - Docker compose
+        - Other (describe below)
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node version, browser. For Docker, the host OS.
+      placeholder: Ubuntu 24.04 · Node 22.12 · Chrome 131
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - WhatsApp connection / QR / session
+        - Inbox UI / real-time sync
+        - CRM sync (Odoo)
+        - Auth / settings
+        - Data export / deletion / retention
+        - Docker / deployment
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs (redacted)
+      description: Server output (`docker compose logs server` or the dev terminal), browser console errors.
+      render: shell
+  - type: checkboxes
+    id: confirmations
+    attributes:
+      label: Confirmations
+      options:
+        - label: I redacted all secrets and personal data from this report.
+          required: true
+        - label: I understand this project uses an unofficial WhatsApp client (see the README disclaimer).
+          required: true
