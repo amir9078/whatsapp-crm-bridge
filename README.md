@@ -4,11 +4,10 @@
 > from a clean web inbox, and have every conversation **automatically logged to your CRM** —
 > **no official WhatsApp API, no per-message fees.**
 
+![CI](https://github.com/amir9078/whatsapp-crm-bridge/actions/workflows/ci.yml/badge.svg)
 ![version](https://img.shields.io/badge/version-0.1.0-brightgreen)
 ![license](https://img.shields.io/badge/license-MIT-blue)
 ![node](https://img.shields.io/badge/node-%E2%89%A520-339933)
-<!-- After publishing to GitHub, add your CI badge:
-![CI](https://github.com/YOUR_USERNAME/whatsapp-crm-bridge/actions/workflows/ci.yml/badge.svg) -->
 
 ---
 
@@ -61,7 +60,7 @@ Web multi-device protocol). That means:
 Requires **Node ≥ 20** and **pnpm** (`corepack enable` once gets you pnpm).
 
 ```bash
-git clone <your-repo-url> whatsapp-crm-bridge
+git clone https://github.com/amir9078/whatsapp-crm-bridge.git
 cd whatsapp-crm-bridge
 pnpm install
 cp .env.example .env          # optional for local dev — defaults work

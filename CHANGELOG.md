@@ -49,4 +49,4 @@ First public release — a complete, self-hostable WhatsApp → CRM bridge.
 - One WhatsApp number and one CRM integration per instance (single-tenant by design).
 - Uses an unofficial WhatsApp client — see the README disclaimer for ToS/ban risk.
 
-[0.1.0]: https://github.com/YOUR_USERNAME/whatsapp-crm-bridge/releases/tag/v0.1.0
+[0.1.0]: https://github.com/amir9078/whatsapp-crm-bridge/releases/tag/v0.1.0

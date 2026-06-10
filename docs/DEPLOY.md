@@ -20,7 +20,7 @@ Compose. Locally (dev) the app still runs without Docker on SQLite: `pnpm server
 ## 2. Configure
 
 ```bash
-git clone <your-fork-or-this-repo> && cd whatsapp-crm-bridge
+git clone https://github.com/amir9078/whatsapp-crm-bridge.git && cd whatsapp-crm-bridge
 cp .env.example .env
 ```
 

@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: 🏁 ALL MILESTONES DONE (M0–M9) — v0.1.0 tagged locally.** Remaining = your two steps: (1) push to GitHub (repo + `main` + `v0.1.0` tag, swap `YOUR_USERNAME` placeholders, create the Release from CHANGELOG), (2) verify `docker compose up -d --build` on a Docker machine/VPS (none here). After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
+> **Current status: 🏁 ALL MILESTONES DONE (M0–M9) — v0.1.0 tagged, all URLs set to `amir9078/whatsapp-crm-bridge`, `origin` remote configured.** Remaining = your two steps: (1) create the GitHub repo + `git push -u origin main --tags` + create the Release from CHANGELOG, (2) verify `docker compose up -d --build` on a Docker machine/VPS (none here). After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -127,7 +127,7 @@ Claude will then:
 **Goal:** a repo a stranger can star and run.
 - [x] README rewritten for v0.1.0: features (Odoo, auth, encryption, data rights, Docker), real 5-minute quick-start, Docker section, "Adding a CRM adapter" contributor guide, disclaimer kept front-and-center. *(No real screenshots on purpose — your inbox is personal data; the interactive mockup in `docs/` is the visual. Add a redacted screenshot later if you like.)*
 - [x] GitHub Actions CI (`.github/workflows/ci.yml`: install → prisma generate → lint → typecheck → test → build); issue forms (bug/feature + security contact-link, no blank issues) + PR template; `CHANGELOG.md`; **`v0.1.0` tag created locally**.
-**Acceptance:** fresh clone → README quick-start → running app (commands verified on this machine). ⚠ Publishing is yours: create the GitHub repo, push `main` + the `v0.1.0` tag, then replace `YOUR_USERNAME` placeholders (README CI badge comment, CHANGELOG link, issue config.yml) and create the GitHub Release from the tag using the CHANGELOG notes.
+**Acceptance:** fresh clone → README quick-start → running app (commands verified on this machine). All URLs point at `github.com/amir9078/whatsapp-crm-bridge`; `origin` remote configured. ⚠ Publishing is yours: create the GitHub repo, `git push -u origin main --tags`, create the Release from the `v0.1.0` tag using the CHANGELOG notes.
 
 ---
 
