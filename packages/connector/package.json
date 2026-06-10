@@ -7,7 +7,7 @@
   "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc -b",
-    "test": "tsx --test src/auth-state.test.ts"
+    "test": "tsx --test src/auth-state.test.ts src/message-mapping.test.ts"
   },
   "dependencies": {
     "@wcb/shared": "workspace:*",

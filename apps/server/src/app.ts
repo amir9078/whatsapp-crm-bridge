@@ -8,6 +8,7 @@ import {
   ingestInboundMessage,
   listConversations,
   listMessages,
+  syncContactDirectory,
   Prisma,
   type PrismaClient,
 } from '@wcb/db';
@@ -152,6 +153,11 @@ export async function buildServer({
           });
         }
         crmWorker.notify(result.conversationId);
+        break;
+      }
+      case 'contacts': {
+        // WhatsApp directory batch: names + lid→phone pairs; merges lid-pseudo contacts.
+        await syncContactDirectory(prisma, event.contacts);
         break;
       }
       case 'message-status': {

@@ -27,10 +27,14 @@ export function ConversationView({
   onSend: (text: string) => void;
 }) {
   const [draft, setDraft] = useState('');
-  const endRef = useRef<HTMLDivElement>(null);
+  const msgsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+    // Scroll ONLY the message container. scrollIntoView walks every scrollable ancestor —
+    // when a browser extension inflates the document, it scrolls the whole page and
+    // shoves the app's headers out of the viewport.
+    const el = msgsRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [messages.length]);
 
   const name = conversation.contact.displayName ?? conversation.contact.phoneE164;
@@ -56,7 +60,7 @@ export function ConversationView({
           <div className="st">{conversation.contact.phoneE164}</div>
         </div>
       </header>
-      <div className="msgs">
+      <div className="msgs" ref={msgsRef}>
         {messages.map((m) => (
           <div key={m.id} className={`msg ${m.direction}`}>
             <div className="bubble">
@@ -71,7 +75,6 @@ export function ConversationView({
             </div>
           </div>
         ))}
-        <div ref={endRef} />
       </div>
       <div className="composer">
         <div className="field">

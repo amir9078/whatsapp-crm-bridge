@@ -9,7 +9,12 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { InboundMessage } from '@wcb/shared';
 import { PrismaClient } from '@prisma/client';
-import { ensureConnection, ingestInboundMessage, updateMessageStatus } from './ingest.js';
+import {
+  ensureConnection,
+  ingestInboundMessage,
+  syncContactDirectory,
+  updateMessageStatus,
+} from './ingest.js';
 import { listConversations, listMessages } from './queries.js';
 
 const pkgDir = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -110,3 +115,83 @@ test('messages survive a "restart" (fresh client reads them back, ordered)', asy
     await fresh.$disconnect();
   }
 });
+
+// ── LID + directory tests run last: they intentionally rename/merge contacts ──
+test('directory entry names the contact; later lid messages land on the SAME contact', async () => {
+  const connectionId = await ensureConnection(prisma);
+
+  // Directory first (the normal history-sync order): name + lid mapping.
+  await syncContactDirectory(prisma, [
+    {
+      waId: '971501234567@s.whatsapp.net',
+      phoneE164: '+971501234567',
+      lidJid: '186165810446339@lid',
+      displayName: 'Sarah From The Address Book',
+    },
+  ]);
+  const named = await prisma.contact.findUniqueOrThrow({
+    where: { phoneE164: '+971501234567' },
+  });
+  assert.equal(named.displayName, 'Sarah From The Address Book');
+  assert.equal(named.lidJid, '186165810446339@lid');
+
+  // A lid-addressed message whose connector-side mapping failed (restart scenario):
+  // phoneE164 is the lid pseudo-number, but lidJid lets the server route it correctly.
+  const result = await ingestInboundMessage(
+    prisma,
+    connectionId,
+    inbound({
+      waMessageId: 'WAMID-LID-1',
+      remoteJid: '186165810446339@lid',
+      phoneE164: '+186165810446339',
+      lidJid: '186165810446339@lid',
+      body: 'lid-routed message',
+      senderName: 'push name must not clobber',
+    }),
+  );
+  const landedOn = await prisma.contact.findUniqueOrThrow({ where: { id: result.contactId } });
+  assert.equal(landedOn.phoneE164, '+971501234567'); // real contact, not a lid ghost
+  assert.equal(landedOn.displayName, 'Sarah From The Address Book'); // name preserved
+  assert.equal(await prisma.contact.count(), 1);
+});
+
+test('lid ghost created BEFORE the directory arrives is merged into the real contact', async () => {
+  const connectionId = await ensureConnection(prisma);
+
+  // Message from an unknown lid → ghost contact keyed by lid digits.
+  const ghost = await ingestInboundMessage(
+    prisma,
+    connectionId,
+    inbound({
+      waMessageId: 'WAMID-LID-2',
+      remoteJid: '222333444555666@lid',
+      phoneE164: '+222333444555666',
+      lidJid: '222333444555666@lid',
+      body: 'early lid message',
+    }),
+  );
+  assert.ok(await prisma.contact.findUnique({ where: { phoneE164: '+222333444555666' } }));
+
+  // Directory arrives late and reveals the real identity.
+  const { merged } = await syncContactDirectory(prisma, [
+    {
+      waId: '971509998877@s.whatsapp.net',
+      phoneE164: '+971509998877',
+      lidJid: '222333444555666@lid',
+      displayName: 'Omar Khan',
+    },
+  ]);
+  assert.equal(merged, 1);
+
+  // Ghost gone; its message now belongs to the real contact's conversation.
+  assert.equal(await prisma.contact.findUnique({ where: { phoneE164: '+222333444555666' } }), null);
+  const real = await prisma.contact.findUniqueOrThrow({ where: { phoneE164: '+971509998877' } });
+  assert.equal(real.displayName, 'Omar Khan');
+  const message = await prisma.message.findFirstOrThrow({
+    where: { waMessageId: 'WAMID-LID-2' },
+    include: { conversation: true },
+  });
+  assert.equal(message.conversation.contactId, real.id);
+  assert.notEqual(message.conversation.contactId, ghost.contactId === real.id ? '' : ghost.contactId);
+});
+

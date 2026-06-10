@@ -25,11 +25,15 @@ model Contact {
   id          String   @id @default(uuid())
   waId        String?
   phoneE164   String   @unique
+  /// WhatsApp privacy LID jid ("…@lid") — second identity of the same person.
+  lidJid      String?
   displayName String?
   createdAt   DateTime @default(now())
 
   conversations Conversation[]
   leadMappings  LeadMapping[]
+
+  @@index([lidJid])
 }
 
 model Conversation {

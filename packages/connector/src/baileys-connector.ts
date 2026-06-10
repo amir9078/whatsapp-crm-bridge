@@ -3,21 +3,20 @@ import {
   fetchLatestBaileysVersion,
   makeWASocket,
 } from '@whiskeysockets/baileys';
-import { useEncryptedMultiFileAuthState } from './auth-state.js';
-import type { WAMessage, WASocket, proto } from '@whiskeysockets/baileys';
+import type { Contact as BaileysContact, WASocket } from '@whiskeysockets/baileys';
+import { rm } from 'node:fs/promises';
 import pino from 'pino';
 import type {
   ConnectionStatus,
   ConnectorEvent,
   ConnectorEventHandler,
-  InboundMessage,
-  MediaMeta,
   MessageStatus,
-  MessageType,
   SendMessageInput,
   SendMessageResult,
   WhatsAppConnector,
 } from '@wcb/shared';
+import { useEncryptedMultiFileAuthState } from './auth-state.js';
+import { contactsToSync, phoneToJid, toInboundMessage } from './message-mapping.js';
 
 type PinoLogger = ReturnType<typeof pino>;
 
@@ -46,6 +45,8 @@ export class BaileysConnector implements WhatsAppConnector {
   private readonly authDir: string;
   private readonly encryptionKey?: string;
   private readonly logger: PinoLogger;
+  /** LID → phone JID directory, fed by history sync + contacts events (message-mapping.ts). */
+  private readonly lidToPn = new Map<string, string>();
 
   constructor(opts: BaileysConnectorOptions = {}) {
     this.authDir = opts.authDir ?? 'auth_state';
@@ -71,6 +72,16 @@ export class BaileysConnector implements WhatsAppConnector {
   private setStatus(status: ConnectionStatus): void {
     this.status = status;
     this.emit({ type: 'connection', status });
+  }
+
+  /** Feed the LID directory and forward address-book names to the server. */
+  private ingestContacts(contacts: ReadonlyArray<Partial<BaileysContact>>): void {
+    const synced = contactsToSync(contacts);
+    if (synced.length === 0) return;
+    for (const c of synced) {
+      if (c.lidJid) this.lidToPn.set(c.lidJid, c.waId);
+    }
+    this.emit({ type: 'contacts', contacts: synced });
   }
 
   async connect(): Promise<void> {
@@ -110,7 +121,9 @@ export class BaileysConnector implements WhatsAppConnector {
       } else if (connection === 'close') {
         const statusCode = statusCodeOf(lastDisconnect?.error);
         if (statusCode === DisconnectReason.loggedOut) {
-          this.setStatus('disconnected'); // link revoked — a fresh QR scan is required
+          // Device was unlinked from the phone — these creds are dead. Wipe them and
+          // reconnect so the UI gets a fresh QR instead of a permanent dead session.
+          void this.resetSession();
         } else {
           this.setStatus('connecting');
           this.connect().catch((err: unknown) => this.logger.error(err));
@@ -121,19 +134,24 @@ export class BaileysConnector implements WhatsAppConnector {
     sock.ev.on('messages.upsert', ({ messages, type }) => {
       if (type !== 'notify') return;
       for (const message of messages) {
-        const inbound = this.toInbound(message);
+        const inbound = toInboundMessage(message, this.lidToPn);
         if (inbound) this.emit({ type: 'message', message: inbound });
       }
     });
 
     // Existing chats delivered by WhatsApp's multi-device history sync after pairing.
-    // Ingest dedupes by waMessageId, so replays are safe; historySync skips unread bumps.
-    sock.ev.on('messaging-history.set', ({ messages }) => {
+    // Contacts FIRST: they carry the lid→phone directory and address-book names the
+    // message mapping depends on. Ingest dedupes by waMessageId, so replays are safe.
+    sock.ev.on('messaging-history.set', ({ contacts, messages }) => {
+      this.ingestContacts(contacts ?? []);
       for (const message of messages) {
-        const inbound = this.toInbound(message);
+        const inbound = toInboundMessage(message, this.lidToPn);
         if (inbound) this.emit({ type: 'message', message: { ...inbound, historySync: true } });
       }
     });
+
+    sock.ev.on('contacts.upsert', (contacts) => this.ingestContacts(contacts));
+    sock.ev.on('contacts.update', (contacts) => this.ingestContacts(contacts));
 
     sock.ev.on('messages.update', (updates) => {
       for (const update of updates) {
@@ -142,6 +160,18 @@ export class BaileysConnector implements WhatsAppConnector {
         if (id && mapped) this.emit({ type: 'message-status', waMessageId: id, status: mapped });
       }
     });
+  }
+
+  /** Wipe dead credentials and restart pairing (emits a fresh QR). */
+  private async resetSession(): Promise<void> {
+    this.sock = undefined;
+    try {
+      await rm(this.authDir, { recursive: true, force: true });
+    } catch (err) {
+      this.logger.error(err);
+    }
+    this.setStatus('disconnected');
+    this.connect().catch((err: unknown) => this.logger.error(err));
   }
 
   async disconnect(): Promise<void> {
@@ -160,38 +190,9 @@ export class BaileysConnector implements WhatsAppConnector {
     const sent = await this.sock.sendMessage(jid, { text: input.body });
     return { waMessageId: sent?.key?.id ?? undefined, clientMessageId: input.clientMessageId };
   }
-
-  private toInbound(message: WAMessage): InboundMessage | undefined {
-    const remoteJid = message.key.remoteJid ?? '';
-    if (!remoteJid || remoteJid === 'status@broadcast') return undefined;
-    if (remoteJid.endsWith('@g.us') || remoteJid.endsWith('@broadcast')) return undefined; // 1:1 only
-    const { type, body, media } = extractContent(message.message);
-    return {
-      waMessageId: message.key.id ?? undefined,
-      fromMe: message.key.fromMe ?? false,
-      remoteJid,
-      phoneE164: jidToPhone(remoteJid),
-      type,
-      body,
-      media,
-      senderName: message.pushName ?? undefined,
-      timestamp: new Date(toSeconds(message.messageTimestamp) * 1000).toISOString(),
-    };
-  }
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
-
-function phoneToJid(phoneE164: string): string {
-  const digits = phoneE164.replace(/[^0-9]/g, '');
-  return `${digits}@s.whatsapp.net`;
-}
-
-function jidToPhone(jid: string): string {
-  const user = jid.split('@')[0] ?? '';
-  const digits = (user.split(':')[0] ?? '').replace(/[^0-9]/g, '');
-  return `+${digits}`;
-}
 
 /** Read a Boom-style `error.output.statusCode` without depending on @hapi/boom. */
 function statusCodeOf(error: unknown): number | undefined {
@@ -199,20 +200,6 @@ function statusCodeOf(error: unknown): number | undefined {
     return (error as { output?: { statusCode?: number } }).output?.statusCode;
   }
   return undefined;
-}
-
-/** WhatsApp timestamps can be a number or a protobuf Long. */
-function toSeconds(value: unknown): number {
-  if (typeof value === 'number') return value;
-  if (
-    value !== null &&
-    typeof value === 'object' &&
-    'toNumber' in value &&
-    typeof (value as { toNumber: unknown }).toNumber === 'function'
-  ) {
-    return (value as { toNumber: () => number }).toNumber();
-  }
-  return Date.now() / 1000;
 }
 
 /** proto.WebMessageInfo.Status: 2 SERVER_ACK, 3 DELIVERY_ACK, 4 READ, 5 PLAYED. */
@@ -228,53 +215,4 @@ function mapStatus(status: number | null | undefined): MessageStatus | undefined
     default:
       return undefined;
   }
-}
-
-function extractContent(content: proto.IMessage | null | undefined): {
-  type: MessageType;
-  body?: string;
-  media?: MediaMeta;
-} {
-  if (!content) return { type: 'system' };
-  if (content.conversation) return { type: 'text', body: content.conversation };
-  if (content.extendedTextMessage?.text) {
-    return { type: 'text', body: content.extendedTextMessage.text };
-  }
-  if (content.imageMessage) {
-    return {
-      type: 'image',
-      body: content.imageMessage.caption ?? undefined,
-      media: { mimeType: content.imageMessage.mimetype ?? undefined },
-    };
-  }
-  if (content.videoMessage) {
-    return {
-      type: 'video',
-      body: content.videoMessage.caption ?? undefined,
-      media: { mimeType: content.videoMessage.mimetype ?? undefined },
-    };
-  }
-  if (content.audioMessage) {
-    return {
-      type: 'audio',
-      media: {
-        mimeType: content.audioMessage.mimetype ?? undefined,
-        durationSec: content.audioMessage.seconds ?? undefined,
-      },
-    };
-  }
-  if (content.documentMessage) {
-    return {
-      type: 'document',
-      body: content.documentMessage.caption ?? undefined,
-      media: {
-        fileName: content.documentMessage.fileName ?? undefined,
-        mimeType: content.documentMessage.mimetype ?? undefined,
-      },
-    };
-  }
-  if (content.stickerMessage) return { type: 'sticker' };
-  if (content.locationMessage) return { type: 'location' };
-  if (content.contactMessage || content.contactsArrayMessage) return { type: 'contact' };
-  return { type: 'system' };
 }

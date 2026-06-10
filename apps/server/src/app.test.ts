@@ -190,3 +190,23 @@ test('delivery receipts update status and broadcast message.status', async () =>
   assert.equal(event.status, 'read');
   assert.equal(event.clientMessageId, 'c_test_1');
 });
+
+test('contacts directory event names existing chats (address book → chat list)', async () => {
+  fake.fire({
+    type: 'contacts',
+    contacts: [
+      {
+        waId: '971501234567@s.whatsapp.net',
+        phoneE164: '+971501234567',
+        lidJid: '186165810446339@lid',
+        displayName: 'Sarah From Directory',
+      },
+    ],
+  });
+  await new Promise((r) => setTimeout(r, 300));
+  const conversations = (await (await fetch(`${baseUrl}/api/v1/conversations`)).json()) as Array<{
+    contact: { displayName: string | null; phoneE164: string };
+  }>;
+  const sarah = conversations.find((c) => c.contact.phoneE164 === '+971501234567');
+  assert.equal(sarah?.contact.displayName, 'Sarah From Directory');
+});

@@ -25,6 +25,12 @@ export interface InboundMessage {
   /** Raw WhatsApp JID, e.g. "971501234567@s.whatsapp.net". */
   remoteJid: string;
   phoneE164: string;
+  /**
+   * Present when the chat is addressed by WhatsApp's privacy LID (…@lid). When the
+   * connector could resolve the LID, `phoneE164` is the real number; when it couldn't,
+   * `phoneE164` is derived from the LID digits and the server resolves via this field.
+   */
+  lidJid?: string;
   type: MessageType;
   body?: string;
   media?: MediaMeta;
@@ -35,6 +41,17 @@ export interface InboundMessage {
   historySync?: boolean;
 }
 
+/** One address-book entry from WhatsApp (history sync / contacts.upsert): jids + name. */
+export interface ContactSync {
+  /** Phone JID, e.g. "971501234567@s.whatsapp.net". */
+  waId: string;
+  phoneE164: string;
+  /** The contact's privacy LID jid (…@lid), when WhatsApp provides one. */
+  lidJid?: string;
+  /** Address-book name (preferred) or the contact's own push name. */
+  displayName?: string;
+}
+
 /**
  * Low-level events emitted by a connector. The server translates these into the canonical
  * `WhatsAppEvent`s (which carry DB ids) before persisting / pushing / syncing.
@@ -43,7 +60,8 @@ export type ConnectorEvent =
   | { type: 'qr'; qr: string }
   | { type: 'connection'; status: ConnectionStatus }
   | { type: 'message'; message: InboundMessage }
-  | { type: 'message-status'; waMessageId: string; status: MessageStatus };
+  | { type: 'message-status'; waMessageId: string; status: MessageStatus }
+  | { type: 'contacts'; contacts: ContactSync[] };
 
 export type ConnectorEventHandler = (event: ConnectorEvent) => void;
 

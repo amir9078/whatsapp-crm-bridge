@@ -28,6 +28,9 @@
 html,
 body {
   height: 100%;
+  /* Lock the document: extensions may inject content below the app, and a scrollable
+     document lets stray scrolls push the whole UI out of view. */
+  overflow: hidden;
 }
 body {
   font-family: var(--ui);
