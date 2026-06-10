@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: 🏁 ALL MILESTONES DONE (M0–M9) — PUBLISHED: https://github.com/amir9078/whatsapp-crm-bridge (public, `main` + `v0.1.0` tag pushed 2026-06-10).** Remaining = your two steps: (1) on GitHub: check the Actions tab is green + create the Release from the `v0.1.0` tag using CHANGELOG.md, (2) verify `docker compose up -d --build` on a Docker machine/VPS (none here). After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
+> **Current status: 🏁 ALL MILESTONES DONE & VERIFIED (M0–M9) — PUBLISHED: https://github.com/amir9078/whatsapp-crm-bridge · `docker compose up` verified end-to-end 2026-06-10 (db healthy, API+auth live, web 200).** Remaining = one GitHub-website step: check Actions is green + create the Release from the `v0.1.0` tag using CHANGELOG.md. After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
@@ -121,7 +121,7 @@ Claude will then:
 - [x] Postgres option: `pnpm -F @wcb/db schema:postgres` emits the postgres schema flavour (dev stays SQLite); single `Dockerfile` image + `docker-compose.yml` (db + server + web, `pg_data`/`wa_auth` volumes, healthcheck, first-boot `prisma db push`), `.dockerignore` keeps secrets/state out of the image.
 - [x] Data rights (`docs/04` §5.3): `GET /data/export` (credential-free JSON bundle), `DELETE /contacts/:id` (cascading erasure), `DELETE /data?confirm=ALL` (wipe, keeps WA link + CRM config); `RETENTION_DAYS` purge sweeper (§5.5). Settings UI: export download + delete-all.
 - [x] `docs/DEPLOY.md`: VPS guide (env table, HTTPS via Caddy, backup/update/troubleshooting).
-**Acceptance:** 32/32 tests; export verified live (29 conversations, no credentials in bundle). ⚠ `docker compose up` itself **not run here — no Docker on this machine**; verify on your VPS per `docs/DEPLOY.md` (your step).
+**Acceptance:** ✅ 32/32 tests; export verified live (29 conversations, no credentials in bundle). ✅ **`docker compose up -d --build` VERIFIED 2026-06-10** on the user's machine (Docker Desktop + WSL2): db healthy, schema pushed, server `{"ok":true}` on :4000, web HTTP 200 on :3000, API auth-protected (401). One build fix needed: `.dockerignore` must exclude `**/*.tsbuildinfo` — stale tsbuildinfo files copied into the image made `tsc -b` skip emitting `dist/`, breaking the web type-check.
 
 ### ✅ M9 — Open-source release polish · DONE (publish = your step)
 **Goal:** a repo a stranger can star and run.
