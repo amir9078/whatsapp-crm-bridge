@@ -1,6 +1,6 @@
 # BUILD PLAN — token-efficient, step-by-step
 
-> **Current status: 🏁 ALL MILESTONES DONE (M0–M9) — v0.1.0 tagged, all URLs set to `amir9078/whatsapp-crm-bridge`, `origin` remote configured.** Remaining = your two steps: (1) create the GitHub repo + `git push -u origin main --tags` + create the Release from CHANGELOG, (2) verify `docker compose up -d --build` on a Docker machine/VPS (none here). After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
+> **Current status: 🏁 ALL MILESTONES DONE (M0–M9) — PUBLISHED: https://github.com/amir9078/whatsapp-crm-bridge (public, `main` + `v0.1.0` tag pushed 2026-06-10).** Remaining = your two steps: (1) on GitHub: check the Actions tab is green + create the Release from the `v0.1.0` tag using CHANGELOG.md, (2) verify `docker compose up -d --build` on a Docker machine/VPS (none here). After that: backlog only (HubSpot/Zoho adapters, media sync, AI summaries).
 > Update this line at the end of every session.
 
 This plan is built so you never "run out of tokens." Each **Milestone (M)** is sized for
