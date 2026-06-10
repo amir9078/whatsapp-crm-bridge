@@ -85,6 +85,35 @@ function AppShell() {
     }
   }, []);
 
+  // Coalesce event-driven refetches: WhatsApp's history sync after pairing streams
+  // thousands of message.created events in minutes — one request per event exhausts the
+  // browser (ERR_INSUFFICIENT_RESOURCES). Leading call + at most one trailing per second.
+  const refreshThrottle = useRef<{ timer: ReturnType<typeof setTimeout> | null; pending: boolean }>({
+    timer: null,
+    pending: false,
+  });
+  const scheduleRefresh = useCallback(() => {
+    const t = refreshThrottle.current;
+    if (t.timer) {
+      t.pending = true;
+      return;
+    }
+    void refreshConversations();
+    t.timer = setTimeout(() => {
+      t.timer = null;
+      if (t.pending) {
+        t.pending = false;
+        scheduleRefresh();
+      }
+    }, 1000);
+  }, [refreshConversations]);
+  useEffect(() => {
+    const t = refreshThrottle.current;
+    return () => {
+      if (t.timer) clearTimeout(t.timer);
+    };
+  }, []);
+
   const openConversation = useCallback(
     async (id: string) => {
       setSelectedId(id);
@@ -129,13 +158,13 @@ function AppShell() {
     const onConnection = (e: { status: string; qr?: string }) => {
       setConnStatus(e.status);
       setQr(e.qr);
-      if (e.status === 'connected') void refreshConversations();
+      if (e.status === 'connected') scheduleRefresh();
     };
     const onCreated = (e: { conversationId: string; message: Message }) => {
       if (e.conversationId === selectedRef.current) {
         setMessages((prev) => upsert(prev, e.message));
       }
-      void refreshConversations();
+      scheduleRefresh();
     };
     const onStatus = (e: {
       messageId: string;
@@ -162,7 +191,7 @@ function AppShell() {
       s.off('message.created', onCreated);
       s.off('message.status', onStatus);
     };
-  }, [refreshConversations, syncConnection]);
+  }, [refreshConversations, scheduleRefresh, syncConnection]);
 
   // Safety net while pairing: poll until connected even if the socket misbehaves (docs/05 §6).
   useEffect(() => {
