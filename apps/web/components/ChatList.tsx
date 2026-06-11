@@ -1,6 +1,6 @@
 'use client';
 import { useState } from 'react';
-import type { ConversationDto } from '../lib/api';
+import { isLidOnly, type ConversationDto } from '../lib/api';
 
 const AVATAR_COLORS = ['#2E9E78', '#3F7AE0', '#C06BD6', '#E08B3F', '#D6536B', '#4FA8B8', '#8B6FD6'];
 
@@ -82,7 +82,9 @@ export function ChatList({
                 </div>
                 <div className="t-main">
                   <div className="t-name">{name}</div>
-                  <div className="t-prev">{c.contact.phoneE164}</div>
+                  <div className="t-prev">
+                    {isLidOnly(c.contact) ? 'number hidden by WhatsApp' : c.contact.phoneE164}
+                  </div>
                 </div>
                 <div className="t-side">
                   <span className="t-time">{fmtTime(c.lastMessageAt)}</span>

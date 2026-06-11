@@ -218,6 +218,13 @@ button {
   height: 100vh;
   display: grid;
   grid-template-columns: 72px 360px 1fr;
+  /* Pin the single row to the viewport: without this the implicit row is auto-sized,
+     so long chat lists/threads grow the page past 100vh (clipped, unscrollable)
+     instead of scrolling inside their own panes. */
+  grid-template-rows: minmax(0, 1fr);
+}
+.app > * {
+  min-height: 0; /* allow grid items to shrink below content height so inner panes scroll */
 }
 .app.with-crm {
   grid-template-columns: 72px 340px 1fr 312px;

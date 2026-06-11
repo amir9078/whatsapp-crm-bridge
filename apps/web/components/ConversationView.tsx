@@ -1,7 +1,7 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { Message } from '@wcb/shared';
-import type { ConversationDto } from '../lib/api';
+import { isLidOnly, type ConversationDto } from '../lib/api';
 import { avatarColor, initials } from './ChatList';
 
 function Ticks({ status }: { status?: string }) {
@@ -57,7 +57,11 @@ export function ConversationView({
         </div>
         <div>
           <div className="nm">{name}</div>
-          <div className="st">{conversation.contact.phoneE164}</div>
+          <div className="st">
+            {isLidOnly(conversation.contact)
+              ? 'number hidden by WhatsApp'
+              : conversation.contact.phoneE164}
+          </div>
         </div>
       </header>
       <div className="msgs" ref={msgsRef}>

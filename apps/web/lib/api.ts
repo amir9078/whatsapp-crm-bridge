@@ -15,7 +15,16 @@ export interface ConversationDto {
     phoneE164: string;
     displayName: string | null;
     waId: string | null;
+    lidJid: string | null;
   };
+}
+
+/**
+ * True when WhatsApp withheld the real phone number (privacy LID chat) — the stored
+ * phoneE164 is then a meaningless internal id and should not be shown as a number.
+ */
+export function isLidOnly(contact: { phoneE164: string; lidJid: string | null }): boolean {
+  return !!contact.lidJid && contact.phoneE164 === `+${contact.lidJid.split('@')[0] ?? ''}`;
 }
 
 export interface ConnectionDto {

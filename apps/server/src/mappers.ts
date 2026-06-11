@@ -31,6 +31,7 @@ export interface ConversationDto {
     phoneE164: string;
     displayName: string | null;
     waId: string | null;
+    lidJid: string | null;
   };
 }
 
@@ -47,6 +48,7 @@ export function toConversationDto(row: DbConversation & { contact: DbContact }):
       phoneE164: row.contact.phoneE164,
       displayName: row.contact.displayName,
       waId: row.contact.waId,
+      lidJid: row.contact.lidJid,
     },
   };
 }
