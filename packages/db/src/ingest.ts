@@ -163,6 +163,9 @@ async function resolveContact(prisma: PrismaClient, inbound: InboundMessage) {
  * Apply a WhatsApp directory batch (history sync / contacts.upsert): set names and LID
  * mappings, and ABSORB any LID-pseudo contact created before the directory arrived —
  * its conversations/messages are re-pointed at the real phone contact.
+ *
+ * Name-only entries (lid + displayName, no phone — all WhatsApp reveals on lid-migrated
+ * accounts) just name the lid contact in place.
  */
 export async function syncContactDirectory(
   prisma: PrismaClient,
@@ -171,6 +174,23 @@ export async function syncContactDirectory(
   let updated = 0;
   let merged = 0;
   for (const entry of entries) {
+    if (!entry.phoneE164) {
+      if (!entry.lidJid) continue;
+      // Find the contact this lid chat created (by lidJid, or by its pseudo-number).
+      const lidPhone = `+${entry.lidJid.split('@')[0] ?? ''}`;
+      const existing = await prisma.contact.findFirst({
+        where: { OR: [{ lidJid: entry.lidJid }, { phoneE164: lidPhone }] },
+      });
+      if (existing && entry.displayName) {
+        await prisma.contact.update({
+          where: { id: existing.id },
+          data: { displayName: entry.displayName, lidJid: entry.lidJid },
+        });
+        updated++;
+      }
+      continue;
+    }
+
     const real = await prisma.contact.upsert({
       where: { phoneE164: entry.phoneE164 },
       create: {

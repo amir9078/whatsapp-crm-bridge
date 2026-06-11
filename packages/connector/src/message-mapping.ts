@@ -21,6 +21,17 @@ export function jidToPhone(jid: string): string {
 
 export const isLidJid = (jid: string): boolean => jid.endsWith('@lid');
 
+/** Jids that are not human 1:1 chats: groups, broadcast, newsletters, WhatsApp PSA ("0@c.us"). */
+export function isNonChatJid(jid: string): boolean {
+  return (
+    jid === 'status@broadcast' ||
+    jid.endsWith('@g.us') ||
+    jid.endsWith('@broadcast') ||
+    jid.endsWith('@newsletter') ||
+    jidToPhone(jid).length <= 2 // "+0", "+" — PSA/service pseudo-jids
+  );
+}
+
 /** Drop the device/agent suffix: "9715...:12@s.whatsapp.net" → "9715...@s.whatsapp.net". */
 export function normalizeJid(jid: string): string {
   const [user = '', server = ''] = jid.split('@');
@@ -29,8 +40,9 @@ export function normalizeJid(jid: string): string {
 
 /**
  * Flatten Baileys contact payloads into directory entries. `id` is normally the phone JID
- * and `lid` the privacy LID, but some payloads put a LID in `id` — classify by suffix and
- * keep only entries that carry a real phone JID (a LID alone can't be mapped).
+ * and `lid` the privacy LID — but on lid-migrated accounts the history payload only has
+ * `id = <lid>` plus a NAME (Baileys derives contacts from chat records). Those lid-only
+ * entries are kept: they can't map a phone number, but they carry the display name.
  */
 export function contactsToSync(
   contacts: ReadonlyArray<Partial<BaileysContact>>,
@@ -44,9 +56,16 @@ export function contactsToSync(
     if (id?.endsWith('@s.whatsapp.net')) pnJid = id;
     else if (id && isLidJid(id)) lidJid = id;
     if (lid && isLidJid(lid)) lidJid = lid;
-    if (!pnJid) continue;
     const displayName = c.name ?? c.notify ?? c.verifiedName ?? undefined;
-    out.push({ waId: pnJid, phoneE164: jidToPhone(pnJid), lidJid, displayName });
+    if (pnJid && isNonChatJid(pnJid)) continue;
+    if (!pnJid && !lidJid) continue;
+    if (!pnJid && !displayName) continue; // lid alone with no name carries nothing useful
+    out.push({
+      waId: pnJid,
+      phoneE164: pnJid ? jidToPhone(pnJid) : undefined,
+      lidJid,
+      displayName,
+    });
   }
   return out;
 }
@@ -70,8 +89,7 @@ export function chatsToSync(chats: ReadonlyArray<RawHistoryChat>): ContactSync[]
   const out: ContactSync[] = [];
   for (const chat of chats) {
     const id = chat.id ? normalizeJid(chat.id) : undefined;
-    if (!id || id === 'status@broadcast') continue;
-    if (id.endsWith('@g.us') || id.endsWith('@broadcast') || id.endsWith('@newsletter')) continue;
+    if (!id || isNonChatJid(id)) continue;
 
     let pnJid: string | undefined;
     let lidJid: string | undefined;
@@ -85,10 +103,16 @@ export function chatsToSync(chats: ReadonlyArray<RawHistoryChat>): ContactSync[]
       const n = normalizeJid(chat.lidJid);
       if (isLidJid(n)) lidJid = n;
     }
-    if (!pnJid) continue;
 
     const displayName = chat.name ?? chat.displayName ?? chat.username ?? undefined;
-    out.push({ waId: pnJid, phoneE164: jidToPhone(pnJid), lidJid, displayName });
+    if (!pnJid && !lidJid) continue;
+    if (!pnJid && !displayName) continue; // lid-only with no name — nothing to contribute
+    out.push({
+      waId: pnJid,
+      phoneE164: pnJid ? jidToPhone(pnJid) : undefined,
+      lidJid,
+      displayName,
+    });
   }
   return out;
 }
@@ -99,11 +123,9 @@ export function toInboundMessage(
   lidToPn: ReadonlyMap<string, string>,
 ): InboundMessage | undefined {
   const rawJid = message.key.remoteJid ?? '';
-  if (!rawJid || rawJid === 'status@broadcast') return undefined;
-  if (rawJid.endsWith('@g.us') || rawJid.endsWith('@broadcast') || rawJid.endsWith('@newsletter')) {
-    return undefined; // 1:1 only
-  }
+  if (!rawJid) return undefined;
   const remoteJid = normalizeJid(rawJid);
+  if (isNonChatJid(remoteJid)) return undefined; // 1:1 human chats only
 
   let phoneJid = remoteJid;
   let lidJid: string | undefined;

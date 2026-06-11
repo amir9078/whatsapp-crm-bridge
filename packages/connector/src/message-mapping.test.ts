@@ -58,25 +58,28 @@ test('unresolved @lid keeps lid digits but flags lidJid for server-side repair',
   assert.equal(inbound.lidJid, '186165810446339@lid');
 });
 
-test('groups, broadcasts, newsletters and status are excluded', () => {
+test('groups, broadcasts, newsletters, status and PSA chats are excluded', () => {
   for (const jid of [
     '12036304@g.us',
     'status@broadcast',
     '123@broadcast',
     '12036304@newsletter',
+    '0@c.us', // WhatsApp service/PSA chat — was surfacing as a "+0" contact
   ]) {
     assert.equal(toInboundMessage(waMsg({ key: { remoteJid: jid, id: 'X' } }), new Map()), undefined, jid);
   }
 });
 
-test('contactsToSync: names + lid pairs from the address book; lid-only entries dropped', () => {
+test('contactsToSync: names + lid pairs kept; lid-only entries keep their NAME', () => {
   const synced = contactsToSync([
     { id: '971501234567@s.whatsapp.net', lid: '186165810446339@lid', name: 'Anas Euronet' },
     { id: '971507654321@s.whatsapp.net', notify: 'Tariq' }, // pushName fallback, no lid
-    { id: '99999@lid' }, // lid alone — unmappable, dropped
+    // the shape Baileys actually emits on lid-migrated accounts (id = lid, name only):
+    { id: '259510648225858@lid', name: 'Nafees Bhai Euronet' },
+    { id: '99999@lid' }, // lid alone, NO name — carries nothing, dropped
     { id: undefined, name: 'ghost' },
   ]);
-  assert.equal(synced.length, 2);
+  assert.equal(synced.length, 3);
   assert.deepEqual(synced[0], {
     waId: '971501234567@s.whatsapp.net',
     phoneE164: '+971501234567',
@@ -84,7 +87,12 @@ test('contactsToSync: names + lid pairs from the address book; lid-only entries 
     displayName: 'Anas Euronet',
   });
   assert.equal(synced[1]?.displayName, 'Tariq');
-  assert.equal(synced[1]?.lidJid, undefined);
+  assert.deepEqual(synced[2], {
+    waId: undefined,
+    phoneE164: undefined,
+    lidJid: '259510648225858@lid',
+    displayName: 'Nafees Bhai Euronet',
+  });
 });
 
 test('ephemeral and view-once wrappers unwrap to their real content', () => {
@@ -122,10 +130,10 @@ test('chatsToSync: history chat records carry the lid↔phone pair + chat name',
     // groups/broadcast/newsletter are not 1:1 chats
     { id: '1203630@g.us', name: 'Warehouse Stock Group' },
     { id: 'status@broadcast' },
-    // lid chat with no pn anywhere — unmappable, dropped
-    { id: '999888777666555@lid', name: 'Unknown' },
+    // lid chat with no pn anywhere — kept as a NAME-ONLY entry
+    { id: '999888777666555@lid', name: 'Faisal Bhai' },
   ]);
-  assert.equal(synced.length, 2);
+  assert.equal(synced.length, 3);
   assert.deepEqual(synced[0], {
     waId: '971543509318@s.whatsapp.net',
     phoneE164: '+971543509318',
@@ -137,5 +145,11 @@ test('chatsToSync: history chat records carry the lid↔phone pair + chat name',
     phoneE164: '+971507654321',
     lidJid: '222333444555666@lid',
     displayName: 'Tariq Euronet',
+  });
+  assert.deepEqual(synced[2], {
+    waId: undefined,
+    phoneE164: undefined,
+    lidJid: '999888777666555@lid',
+    displayName: 'Faisal Bhai',
   });
 });

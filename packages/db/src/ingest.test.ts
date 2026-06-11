@@ -155,6 +155,34 @@ test('directory entry names the contact; later lid messages land on the SAME con
   assert.equal(await prisma.contact.count(), 1);
 });
 
+test('name-only lid entry (lid-migrated accounts) names the contact in place', async () => {
+  const connectionId = await ensureConnection(prisma);
+
+  // A lid chat's messages arrive first → contact keyed by lid pseudo-number, nameless.
+  await ingestInboundMessage(
+    prisma,
+    connectionId,
+    inbound({
+      waMessageId: 'WAMID-LID-3',
+      remoteJid: '777888999000111@lid',
+      phoneE164: '+777888999000111',
+      lidJid: '777888999000111@lid',
+      body: 'message from a lid-only chat',
+    }),
+  );
+
+  // Directory entry carries ONLY lid + name (no phone — all WhatsApp reveals).
+  const { updated } = await syncContactDirectory(prisma, [
+    { lidJid: '777888999000111@lid', displayName: 'Anas Euronet' },
+  ]);
+  assert.equal(updated, 1);
+  const named = await prisma.contact.findUniqueOrThrow({
+    where: { phoneE164: '+777888999000111' },
+  });
+  assert.equal(named.displayName, 'Anas Euronet'); // chat list now reads like WhatsApp
+  assert.equal(named.lidJid, '777888999000111@lid');
+});
+
 test('lid ghost created BEFORE the directory arrives is merged into the real contact', async () => {
   const connectionId = await ensureConnection(prisma);
 

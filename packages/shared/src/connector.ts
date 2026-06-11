@@ -41,11 +41,15 @@ export interface InboundMessage {
   historySync?: boolean;
 }
 
-/** One address-book entry from WhatsApp (history sync / contacts.upsert): jids + name. */
+/**
+ * One directory entry from WhatsApp (history sync / contacts events). Carries whatever
+ * identity WhatsApp revealed: phone JID, privacy LID, or both — lid-only entries still
+ * deliver the chat/contact NAME even when the phone number is withheld.
+ */
 export interface ContactSync {
-  /** Phone JID, e.g. "971501234567@s.whatsapp.net". */
-  waId: string;
-  phoneE164: string;
+  /** Phone JID, e.g. "971501234567@s.whatsapp.net" — absent for lid-only entries. */
+  waId?: string;
+  phoneE164?: string;
   /** The contact's privacy LID jid (…@lid), when WhatsApp provides one. */
   lidJid?: string;
   /** Address-book name (preferred) or the contact's own push name. */
