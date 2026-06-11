@@ -3,9 +3,8 @@
 // APP_ENCRYPTION_KEY every file is sealed with AES-256-GCM; existing plaintext folders are
 // migrated in place on first open. Without a key it behaves exactly like the original.
 import { mkdir, readdir, readFile, unlink, writeFile } from 'node:fs/promises';
-import { createRequire } from 'node:module';
 import { join } from 'node:path';
-import { BufferJSON, initAuthCreds } from '@whiskeysockets/baileys';
+import { BufferJSON, initAuthCreds, proto } from '@whiskeysockets/baileys';
 import type {
   AuthenticationCreds,
   AuthenticationState,
@@ -13,13 +12,6 @@ import type {
   SignalDataTypeMap,
 } from '@whiskeysockets/baileys';
 import { decryptString, encryptString, isEncrypted } from '@wcb/shared/crypto';
-
-// `proto` is re-exported by Baileys via __exportStar, which Node's CJS named-export
-// detection can't see — a named ESM import works for types but is undefined at runtime.
-const require = createRequire(import.meta.url);
-const { proto } = require('@whiskeysockets/baileys') as {
-  proto: { Message: { AppStateSyncKeyData: { fromObject(obj: unknown): unknown } } };
-};
 
 const fixFileName = (file: string): string => file.replace(/\//g, '__').replace(/:/g, '-');
 

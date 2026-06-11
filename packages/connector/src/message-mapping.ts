@@ -5,7 +5,12 @@
 // contacts and breaks CRM matching — so LIDs are resolved to phone JIDs via the
 // directory WhatsApp ships in history sync / contacts.upsert (Contact.id + Contact.lid).
 import { normalizeMessageContent } from '@whiskeysockets/baileys';
-import type { Contact as BaileysContact, WAMessage, proto } from '@whiskeysockets/baileys';
+import type {
+  Contact as BaileysContact,
+  WAMessage,
+  WAMessageKey,
+  proto,
+} from '@whiskeysockets/baileys';
 import type { ContactSync, InboundMessage, MediaMeta, MessageType } from '@wcb/shared';
 
 export function phoneToJid(phoneE164: string): string {
@@ -56,6 +61,14 @@ export function contactsToSync(
     if (id?.endsWith('@s.whatsapp.net')) pnJid = id;
     else if (id && isLidJid(id)) lidJid = id;
     if (lid && isLidJid(lid)) lidJid = lid;
+    // Baileys 7 contacts may carry the real number directly (jid or bare E.164).
+    const rawPhone = (c as { phoneNumber?: string }).phoneNumber;
+    if (!pnJid && rawPhone) {
+      const n = rawPhone.includes('@')
+        ? normalizeJid(rawPhone)
+        : `${rawPhone.replace(/[^0-9]/g, '')}@s.whatsapp.net`;
+      if (n.endsWith('@s.whatsapp.net') && jidToPhone(n).length > 2) pnJid = n;
+    }
     const displayName = c.name ?? c.notify ?? c.verifiedName ?? undefined;
     if (pnJid && isNonChatJid(pnJid)) continue;
     if (!pnJid && !lidJid) continue;
@@ -117,6 +130,22 @@ export function chatsToSync(chats: ReadonlyArray<RawHistoryChat>): ContactSync[]
   return out;
 }
 
+/** Baileys 7 ships explicit lid↔phone pairs in history sync — straight to directory entries. */
+export function lidMappingsToSync(
+  mappings: ReadonlyArray<{ pn?: string | null; lid?: string | null }>,
+): ContactSync[] {
+  const out: ContactSync[] = [];
+  for (const m of mappings) {
+    if (!m.pn || !m.lid) continue;
+    const pnJid = normalizeJid(m.pn);
+    const lidJid = normalizeJid(m.lid);
+    if (!pnJid.endsWith('@s.whatsapp.net') || !isLidJid(lidJid)) continue;
+    if (jidToPhone(pnJid).length <= 2) continue;
+    out.push({ waId: pnJid, phoneE164: jidToPhone(pnJid), lidJid });
+  }
+  return out;
+}
+
 /** Map one Baileys message to the canonical inbound shape; undefined = skip (not a 1:1 chat, or protocol noise). */
 export function toInboundMessage(
   message: WAMessage,
@@ -127,13 +156,23 @@ export function toInboundMessage(
   const remoteJid = normalizeJid(rawJid);
   if (isNonChatJid(remoteJid)) return undefined; // 1:1 human chats only
 
+  // Baileys 7: remoteJidAlt is the OTHER identity of the chat (phone for lid chats,
+  // lid for phone chats) — per-message lid↔phone resolution.
+  const rawAlt = (message.key as WAMessageKey).remoteJidAlt;
+  const altJid = rawAlt ? normalizeJid(rawAlt) : undefined;
+
   let phoneJid = remoteJid;
   let lidJid: string | undefined;
   if (isLidJid(remoteJid)) {
     lidJid = remoteJid;
-    // Unresolved LIDs fall back to LID digits; the server re-resolves via lidJid once the
-    // directory entry lands (see @wcb/db ingest).
-    phoneJid = lidToPn.get(remoteJid) ?? remoteJid;
+    // Prefer the message's own alt jid, then the directory; fall back to LID digits —
+    // the server re-resolves via lidJid once a mapping lands (see @wcb/db ingest).
+    phoneJid =
+      (altJid?.endsWith('@s.whatsapp.net') ? altJid : undefined) ??
+      lidToPn.get(remoteJid) ??
+      remoteJid;
+  } else if (altJid && isLidJid(altJid)) {
+    lidJid = altJid;
   }
 
   const extracted = extractContent(message.message);

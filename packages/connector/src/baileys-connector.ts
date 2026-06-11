@@ -1,4 +1,5 @@
 import {
+  Browsers,
   DisconnectReason,
   fetchLatestBaileysVersion,
   makeWASocket,
@@ -19,9 +20,8 @@ import { useEncryptedMultiFileAuthState } from './auth-state.js';
 import {
   chatsToSync,
   contactsToSync,
-  isLidJid,
   jidToPhone,
-  normalizeJid,
+  lidMappingsToSync,
   phoneToJid,
   toInboundMessage,
   type RawHistoryChat,
@@ -93,6 +93,34 @@ export class BaileysConnector implements WhatsAppConnector {
     this.emit({ type: 'contacts', contacts: synced });
   }
 
+  /** A message resolved its own lid↔phone pair (remoteJidAlt) — record + propagate it once. */
+  private learnPairFromMessage(lidJid: string | undefined, phoneE164: string): void {
+    if (!lidJid || phoneE164 === jidToPhone(lidJid)) return; // nothing new / unresolved
+    if (this.lidToPn.has(lidJid)) return;
+    const pnJid = phoneToJid(phoneE164);
+    this.lidToPn.set(lidJid, pnJid);
+    this.emit({ type: 'contacts', contacts: [{ waId: pnJid, phoneE164, lidJid }] });
+  }
+
+  /** Ask Baileys' persisted lid-mapping store about lids history sync couldn't resolve. */
+  private async resolveLidsFromStore(lids: string[]): Promise<void> {
+    try {
+      const store = this.sock?.signalRepository?.lidMapping;
+      if (!store) return;
+      const pairs = (await store.getPNsForLIDs(lids)) ?? [];
+      const entries = lidMappingsToSync(pairs as Array<{ pn?: string; lid?: string }>);
+      for (const e of entries) {
+        if (e.lidJid && e.waId) this.lidToPn.set(e.lidJid, e.waId);
+      }
+      if (entries.length > 0) {
+        this.emit({ type: 'contacts', contacts: entries });
+        console.log(`[connector] lid store resolved ${entries.length}/${lids.length} lids`);
+      }
+    } catch (err) {
+      this.logger.error(err);
+    }
+  }
+
   async connect(): Promise<void> {
     const { state, saveCreds } = await useEncryptedMultiFileAuthState(
       this.authDir,
@@ -112,7 +140,10 @@ export class BaileysConnector implements WhatsAppConnector {
       version,
       auth: state,
       logger: this.logger,
-      browser: ['ChatBridge', 'Chrome', '1.0.0'],
+      // Desktop identity + full history: WhatsApp only sends the deep chat history
+      // (not just the recent window) to devices presenting as a desktop client.
+      browser: Browsers.macOS('Desktop'),
+      syncFullHistory: true,
       markOnlineOnConnect: false,
     });
     this.sock = sock;
@@ -144,7 +175,10 @@ export class BaileysConnector implements WhatsAppConnector {
       if (type !== 'notify') return;
       for (const message of messages) {
         const inbound = toInboundMessage(message, this.lidToPn);
-        if (inbound) this.emit({ type: 'message', message: inbound });
+        if (inbound) {
+          this.learnPairFromMessage(inbound.lidJid, inbound.phoneE164);
+          this.emit({ type: 'message', message: inbound });
+        }
       }
     });
 
@@ -153,8 +187,9 @@ export class BaileysConnector implements WhatsAppConnector {
     // the lid→phone mapping and names the message mapping depends on. Depending on the
     // account, either source may be the only one populated. Ingest dedupes by
     // waMessageId, so replays are safe.
-    sock.ev.on('messaging-history.set', ({ chats, contacts, messages }) => {
+    sock.ev.on('messaging-history.set', ({ chats, contacts, messages, lidPnMappings }) => {
       const directory = [
+        ...lidMappingsToSync(lidPnMappings ?? []),
         ...chatsToSync((chats ?? []) as RawHistoryChat[]),
         ...contactsToSync(contacts ?? []),
       ];
@@ -164,10 +199,16 @@ export class BaileysConnector implements WhatsAppConnector {
       }
       let mapped = 0;
       let skipped = 0;
+      const unresolvedLids = new Set<string>();
       for (const message of messages) {
         const inbound = toInboundMessage(message, this.lidToPn);
         if (inbound) {
           mapped++;
+          if (inbound.lidJid && inbound.phoneE164 === jidToPhone(inbound.lidJid)) {
+            unresolvedLids.add(inbound.lidJid);
+          } else {
+            this.learnPairFromMessage(inbound.lidJid, inbound.phoneE164);
+          }
           this.emit({ type: 'message', message: { ...inbound, historySync: true } });
         } else {
           skipped++;
@@ -180,42 +221,13 @@ export class BaileysConnector implements WhatsAppConnector {
       const lidPn = directory.filter((c) => c.lidJid && c.waId).length;
       const nameOnly = directory.filter((c) => !c.waId).length;
       console.log(
-        `[connector] history batch: ${chats?.length ?? 0} chats + ${contacts?.length ?? 0} contacts → ` +
-          `${directory.length} directory entries (${lidPn} lid→phone, ${nameOnly} name-only), ` +
-          `${messages.length} messages (${mapped} ingested, ${skipped} skipped)`,
+        `[connector] history batch: ${chats?.length ?? 0} chats + ${contacts?.length ?? 0} contacts + ` +
+          `${lidPnMappings?.length ?? 0} lid-pn pairs → ${directory.length} directory entries ` +
+          `(${lidPn} lid→phone, ${nameOnly} name-only), ${messages.length} messages ` +
+          `(${mapped} ingested, ${skipped} skipped, ${unresolvedLids.size} lids unresolved)`,
       );
-      // Structural sample (no private values) — shows which identity/name fields this
-      // account's payloads actually populate. Invaluable when WhatsApp shifts shapes.
-      const chatSample = (chats ?? []).slice(0, 2).map((c) => ({
-        id: c.id,
-        pnJid: (c as RawHistoryChat).pnJid ?? null,
-        lidJid: (c as RawHistoryChat).lidJid ?? null,
-        hasName: Boolean((c as RawHistoryChat).name),
-        hasDisplayName: Boolean((c as RawHistoryChat).displayName),
-        hasUsername: Boolean((c as RawHistoryChat).username),
-      }));
-      const contactSample = (contacts ?? []).slice(0, 2).map((c) => ({
-        id: c.id,
-        lid: c.lid ?? null,
-        hasName: Boolean(c.name),
-        hasNotify: Boolean(c.notify),
-      }));
-      console.log(
-        `[connector] sample shapes — chats: ${JSON.stringify(chatSample)} contacts: ${JSON.stringify(contactSample)}`,
-      );
-    });
-
-    // WhatsApp occasionally shares the real phone number behind a LID chat — capture it.
-    sock.ev.on('chats.phoneNumberShare', ({ lid, jid }) => {
-      const lidJid = normalizeJid(lid);
-      const pnJid = normalizeJid(jid);
-      if (!isLidJid(lidJid) || !pnJid.endsWith('@s.whatsapp.net')) return;
-      this.lidToPn.set(lidJid, pnJid);
-      this.emit({
-        type: 'contacts',
-        contacts: [{ waId: pnJid, phoneE164: jidToPhone(pnJid), lidJid }],
-      });
-      console.log(`[connector] phone-number share resolved a lid chat`);
+      // Baileys 7 persists lid↔pn pairs in the signal store — ask it about leftovers.
+      if (unresolvedLids.size > 0) void this.resolveLidsFromStore([...unresolvedLids]);
     });
 
     sock.ev.on('contacts.upsert', (contacts) => this.ingestContacts(contacts));
