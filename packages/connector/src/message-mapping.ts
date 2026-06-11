@@ -51,7 +51,49 @@ export function contactsToSync(
   return out;
 }
 
-/** Map one Baileys message to the canonical inbound shape; undefined = not a 1:1 chat. */
+/**
+ * History-sync chat records (proto.Conversation) carry the lid↔phone pair directly:
+ * `id` is one identity, `pnJid`/`lidJid` the other, and `name`/`displayName` the chat
+ * title. On many accounts this — not the contacts array — is the only source of the
+ * mapping, so it feeds the same directory pipeline.
+ */
+export interface RawHistoryChat {
+  id?: string | null;
+  pnJid?: string | null;
+  lidJid?: string | null;
+  name?: string | null;
+  displayName?: string | null;
+  username?: string | null;
+}
+
+export function chatsToSync(chats: ReadonlyArray<RawHistoryChat>): ContactSync[] {
+  const out: ContactSync[] = [];
+  for (const chat of chats) {
+    const id = chat.id ? normalizeJid(chat.id) : undefined;
+    if (!id || id === 'status@broadcast') continue;
+    if (id.endsWith('@g.us') || id.endsWith('@broadcast') || id.endsWith('@newsletter')) continue;
+
+    let pnJid: string | undefined;
+    let lidJid: string | undefined;
+    if (isLidJid(id)) lidJid = id;
+    else if (id.endsWith('@s.whatsapp.net')) pnJid = id;
+    if (chat.pnJid) {
+      const n = normalizeJid(chat.pnJid);
+      if (n.endsWith('@s.whatsapp.net')) pnJid = n;
+    }
+    if (chat.lidJid) {
+      const n = normalizeJid(chat.lidJid);
+      if (isLidJid(n)) lidJid = n;
+    }
+    if (!pnJid) continue;
+
+    const displayName = chat.name ?? chat.displayName ?? chat.username ?? undefined;
+    out.push({ waId: pnJid, phoneE164: jidToPhone(pnJid), lidJid, displayName });
+  }
+  return out;
+}
+
+/** Map one Baileys message to the canonical inbound shape; undefined = skip (not a 1:1 chat, or protocol noise). */
 export function toInboundMessage(
   message: WAMessage,
   lidToPn: ReadonlyMap<string, string>,
@@ -72,16 +114,17 @@ export function toInboundMessage(
     phoneJid = lidToPn.get(remoteJid) ?? remoteJid;
   }
 
-  const { type, body, media } = extractContent(message.message);
+  const extracted = extractContent(message.message);
+  if (!extracted) return undefined; // protocol/system noise — not a human message
   return {
     waMessageId: message.key.id ?? undefined,
     fromMe: message.key.fromMe ?? false,
     remoteJid: rawJid,
     phoneE164: jidToPhone(phoneJid),
     lidJid,
-    type,
-    body,
-    media,
+    type: extracted.type,
+    body: extracted.body,
+    media: extracted.media,
     senderName: message.pushName ?? undefined,
     timestamp: new Date(toSeconds(message.messageTimestamp) * 1000).toISOString(),
   };
@@ -101,15 +144,28 @@ function toSeconds(value: unknown): number {
   return Date.now() / 1000;
 }
 
-export function extractContent(rawContent: proto.IMessage | null | undefined): {
-  type: MessageType;
-  body?: string;
-  media?: MediaMeta;
-} {
+export function extractContent(rawContent: proto.IMessage | null | undefined):
+  | {
+      type: MessageType;
+      body?: string;
+      media?: MediaMeta;
+    }
+  | undefined {
   // Unwrap ephemeral / view-once / document-with-caption envelopes — without this,
   // disappearing-mode chats (common for business accounts) all degrade to 'system'.
   const content = normalizeMessageContent(rawContent ?? undefined);
-  if (!content) return { type: 'system' };
+  // Pure protocol traffic (key shares, history notifications, reactions, receipts…) is
+  // not a human message — storing it litters chats with "[system]" bubbles.
+  if (!content) return undefined;
+  if (
+    content.protocolMessage ||
+    content.senderKeyDistributionMessage ||
+    content.reactionMessage ||
+    content.pollUpdateMessage ||
+    content.keepInChatMessage
+  ) {
+    return undefined;
+  }
   if (content.conversation) return { type: 'text', body: content.conversation };
   if (content.extendedTextMessage?.text) {
     return { type: 'text', body: content.extendedTextMessage.text };

@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { WAMessage } from '@whiskeysockets/baileys';
 import {
+  chatsToSync,
   contactsToSync,
   extractContent,
   isLidJid,
@@ -90,14 +91,51 @@ test('ephemeral and view-once wrappers unwrap to their real content', () => {
   const ephemeral = extractContent({
     ephemeralMessage: { message: { conversation: 'disappearing text' } },
   });
-  assert.equal(ephemeral.type, 'text');
-  assert.equal(ephemeral.body, 'disappearing text');
+  assert.equal(ephemeral?.type, 'text');
+  assert.equal(ephemeral?.body, 'disappearing text');
 
   const viewOnce = extractContent({
     viewOnceMessageV2: { message: { imageMessage: { mimetype: 'image/jpeg' } } },
   });
-  assert.equal(viewOnce.type, 'image');
+  assert.equal(viewOnce?.type, 'image');
+});
 
-  assert.equal(extractContent(undefined).type, 'system');
-  assert.equal(extractContent({ protocolMessage: {} }).type, 'system');
+test('protocol noise is skipped entirely — no [system] bubbles in chats', () => {
+  assert.equal(extractContent(undefined), undefined);
+  assert.equal(extractContent({ protocolMessage: {} }), undefined);
+  assert.equal(extractContent({ reactionMessage: {} }), undefined);
+  assert.equal(extractContent({ senderKeyDistributionMessage: {} }), undefined);
+  // …and at the message level:
+  const skipped = toInboundMessage(
+    waMsg({ message: { protocolMessage: { type: 0 } } }),
+    new Map(),
+  );
+  assert.equal(skipped, undefined);
+});
+
+test('chatsToSync: history chat records carry the lid↔phone pair + chat name', () => {
+  const synced = chatsToSync([
+    // lid-form chat id, phone in pnJid — the shape seen on lid-migrated accounts
+    { id: '186165810446339@lid', pnJid: '971543509318@s.whatsapp.net', name: 'Anas Euronet' },
+    // phone-form chat id, lid in lidJid
+    { id: '971507654321@s.whatsapp.net', lidJid: '222333444555666@lid', name: 'Tariq Euronet' },
+    // groups/broadcast/newsletter are not 1:1 chats
+    { id: '1203630@g.us', name: 'Warehouse Stock Group' },
+    { id: 'status@broadcast' },
+    // lid chat with no pn anywhere — unmappable, dropped
+    { id: '999888777666555@lid', name: 'Unknown' },
+  ]);
+  assert.equal(synced.length, 2);
+  assert.deepEqual(synced[0], {
+    waId: '971543509318@s.whatsapp.net',
+    phoneE164: '+971543509318',
+    lidJid: '186165810446339@lid',
+    displayName: 'Anas Euronet',
+  });
+  assert.deepEqual(synced[1], {
+    waId: '971507654321@s.whatsapp.net',
+    phoneE164: '+971507654321',
+    lidJid: '222333444555666@lid',
+    displayName: 'Tariq Euronet',
+  });
 });

@@ -16,7 +16,13 @@ import type {
   WhatsAppConnector,
 } from '@wcb/shared';
 import { useEncryptedMultiFileAuthState } from './auth-state.js';
-import { contactsToSync, phoneToJid, toInboundMessage } from './message-mapping.js';
+import {
+  chatsToSync,
+  contactsToSync,
+  phoneToJid,
+  toInboundMessage,
+  type RawHistoryChat,
+} from './message-mapping.js';
 
 type PinoLogger = ReturnType<typeof pino>;
 
@@ -140,14 +146,36 @@ export class BaileysConnector implements WhatsAppConnector {
     });
 
     // Existing chats delivered by WhatsApp's multi-device history sync after pairing.
-    // Contacts FIRST: they carry the lid→phone directory and address-book names the
-    // message mapping depends on. Ingest dedupes by waMessageId, so replays are safe.
-    sock.ev.on('messaging-history.set', ({ contacts, messages }) => {
+    // Directory FIRST: chat records (Conversation.pnJid/lidJid/name) and contacts carry
+    // the lid→phone mapping and names the message mapping depends on. Depending on the
+    // account, either source may be the only one populated. Ingest dedupes by
+    // waMessageId, so replays are safe.
+    sock.ev.on('messaging-history.set', ({ chats, contacts, messages }) => {
+      const chatDirectory = chatsToSync((chats ?? []) as RawHistoryChat[]);
+      if (chatDirectory.length > 0) {
+        for (const c of chatDirectory) {
+          if (c.lidJid) this.lidToPn.set(c.lidJid, c.waId);
+        }
+        this.emit({ type: 'contacts', contacts: chatDirectory });
+      }
       this.ingestContacts(contacts ?? []);
+      let mapped = 0;
+      let skipped = 0;
       for (const message of messages) {
         const inbound = toInboundMessage(message, this.lidToPn);
-        if (inbound) this.emit({ type: 'message', message: { ...inbound, historySync: true } });
+        if (inbound) {
+          mapped++;
+          this.emit({ type: 'message', message: { ...inbound, historySync: true } });
+        } else {
+          skipped++;
+        }
       }
+      // Ops breadcrumb for self-hosters (docker logs): what each history batch contained.
+      console.log(
+        `[connector] history batch: ${chats?.length ?? 0} chats (${chatDirectory.length} mapped, ` +
+          `${chatDirectory.filter((c) => c.lidJid).length} with lid), ${contacts?.length ?? 0} contacts, ` +
+          `${messages.length} messages (${mapped} ingested, ${skipped} skipped)`,
+      );
     });
 
     sock.ev.on('contacts.upsert', (contacts) => this.ingestContacts(contacts));
