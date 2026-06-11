@@ -30,11 +30,11 @@ export function ConversationView({
   const msgsRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    // Scroll ONLY the message container. scrollIntoView walks every scrollable ancestor —
-    // when a browser extension inflates the document, it scrolls the whole page and
-    // shoves the app's headers out of the viewport.
+    // Scroll ONLY the message container (never scrollIntoView — it walks every scrollable
+    // ancestor). Instant jump: smooth animations get cancelled mid-flight on big loads,
+    // leaving the user stranded at the OLDEST message when opening a chat.
     const el = msgsRef.current;
-    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+    if (el) el.scrollTop = el.scrollHeight;
   }, [messages.length]);
 
   const name = conversation.contact.displayName ?? conversation.contact.phoneE164;
