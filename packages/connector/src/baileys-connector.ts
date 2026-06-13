@@ -172,7 +172,10 @@ export class BaileysConnector implements WhatsAppConnector {
     });
 
     sock.ev.on('messages.upsert', ({ messages, type }) => {
-      if (type !== 'notify') return;
+      // 'notify' = new incoming message; 'append' = messages added to a chat, INCLUDING
+      // your own messages sent from the phone. Dropping 'append' (the old bug) meant
+      // outgoing-from-phone messages never appeared. Ingest dedupes by waMessageId.
+      if (type !== 'notify' && type !== 'append') return;
       for (const message of messages) {
         const inbound = toInboundMessage(message, this.lidToPn);
         if (inbound) {

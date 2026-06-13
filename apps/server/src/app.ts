@@ -227,7 +227,7 @@ export async function buildServer({
     const { id } = req.params as { id: string };
     const conversation = await prisma.conversation.findUnique({ where: { id } });
     if (!conversation) return reply.code(404).send({ error: 'conversation not found' });
-    const rows = await listMessages(prisma, id, 500);
+    const rows = await listMessages(prisma, id, 2000);
     return rows.map(toSharedMessage);
   });
 

@@ -8,7 +8,7 @@ import type { PrismaClient } from '@prisma/client';
  * DESC) floats empty conversations to the TOP of the inbox, while SQLite sorts them last —
  * so the bug only shows up in the Docker/Postgres deployment, never in dev or tests.
  */
-export function listConversations(prisma: PrismaClient, limit = 50) {
+export function listConversations(prisma: PrismaClient, limit = 2000) {
   return prisma.conversation.findMany({
     take: limit,
     orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
@@ -16,11 +16,16 @@ export function listConversations(prisma: PrismaClient, limit = 50) {
   });
 }
 
-/** Message history for one conversation, oldest→newest (UI renders top-down). */
-export function listMessages(prisma: PrismaClient, conversationId: string, limit = 100) {
-  return prisma.message.findMany({
+/**
+ * Message history for one conversation, oldest→newest (UI renders top-down). Returns the
+ * most recent `limit` messages (then re-sorted ascending) so very long chats stay bounded
+ * while always showing the latest, not the oldest.
+ */
+export async function listMessages(prisma: PrismaClient, conversationId: string, limit = 1000) {
+  const rows = await prisma.message.findMany({
     where: { conversationId },
-    orderBy: { timestamp: 'asc' },
+    orderBy: { timestamp: 'desc' },
     take: limit,
   });
+  return rows.reverse();
 }
