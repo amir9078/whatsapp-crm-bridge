@@ -54,6 +54,10 @@ export class BaileysConnector implements WhatsAppConnector {
   private readonly authDir: string;
   private readonly encryptionKey?: string;
   private readonly logger: PinoLogger;
+  /** Consecutive reconnects that never reached 'open'; past the cap we wipe → fresh QR. */
+  private reconnectAttempts = 0;
+  private reconnectTimer?: NodeJS.Timeout;
+  private static readonly MAX_RECONNECTS = 5;
   /** LID → phone JID directory, fed by history sync + contacts events (message-mapping.ts). */
   private readonly lidToPn = new Map<string, string>();
 
@@ -153,21 +157,50 @@ export class BaileysConnector implements WhatsAppConnector {
     sock.ev.on('connection.update', (update) => {
       const { connection, lastDisconnect, qr } = update;
       if (qr) {
+        this.reconnectAttempts = 0; // a QR means we're pairing fresh — not a failing resume
         this.setStatus('qr_pending');
         this.emit({ type: 'qr', qr });
       }
       if (connection === 'open') {
+        this.reconnectAttempts = 0;
         this.setStatus('connected');
+        console.log('[connector] connection open');
       } else if (connection === 'close') {
         const statusCode = statusCodeOf(lastDisconnect?.error);
-        if (statusCode === DisconnectReason.loggedOut) {
-          // Device was unlinked from the phone — these creds are dead. Wipe them and
-          // reconnect so the UI gets a fresh QR instead of a permanent dead session.
+        console.log(`[connector] connection closed (code ${statusCode ?? 'unknown'})`);
+
+        // Creds are definitively dead → wipe and show a fresh QR immediately.
+        if (
+          statusCode === DisconnectReason.loggedOut ||
+          statusCode === DisconnectReason.forbidden ||
+          statusCode === DisconnectReason.badSession
+        ) {
           void this.resetSession();
-        } else {
-          this.setStatus('connecting');
-          this.connect().catch((err: unknown) => this.logger.error(err));
+          return;
         }
+        // Another device took the session — don't fight it with a reconnect loop.
+        if (statusCode === DisconnectReason.connectionReplaced) {
+          this.setStatus('disconnected');
+          console.log('[connector] session replaced by another device — not reconnecting');
+          return;
+        }
+        // Transient close (restartRequired/timeout/connectionLost/…): retry with backoff,
+        // but if a stored session keeps failing to resume, give up and force a fresh QR so
+        // the UI never gets stuck on "connecting" forever.
+        this.reconnectAttempts += 1;
+        if (this.reconnectAttempts > BaileysConnector.MAX_RECONNECTS) {
+          console.log(
+            `[connector] ${this.reconnectAttempts} failed reconnects — wiping session for a fresh QR`,
+          );
+          void this.resetSession();
+          return;
+        }
+        const backoffMs = Math.min(1000 * 2 ** (this.reconnectAttempts - 1), 15_000);
+        this.setStatus('connecting');
+        if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+        this.reconnectTimer = setTimeout(() => {
+          this.connect().catch((err: unknown) => this.logger.error(err));
+        }, backoffMs);
       }
     });
 
@@ -247,6 +280,8 @@ export class BaileysConnector implements WhatsAppConnector {
 
   /** Wipe dead credentials and restart pairing (emits a fresh QR). */
   private async resetSession(): Promise<void> {
+    this.reconnectAttempts = 0;
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
     this.sock = undefined;
     try {
       await rm(this.authDir, { recursive: true, force: true });
