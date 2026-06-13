@@ -138,9 +138,12 @@ export class CrmSyncWorker {
 
     const conversation = await prisma.conversation.findUnique({
       where: { id: conversationId },
-      include: { contact: true },
+      include: { contact: true, waConnection: true },
     });
     if (!conversation) return;
+    // Which salesperson's inbox this thread belongs to (M10) — stamped on the CRM note.
+    const inboxLabel =
+      conversation.waConnection?.label ?? conversation.waConnection?.phoneE164 ?? null;
 
     const unsynced = await listUnsyncedMessages(prisma, conversationId, integration.id);
     if (unsynced.length === 0) return;
@@ -165,6 +168,7 @@ export class CrmSyncWorker {
       const body = buildTranscriptHtml({
         contactName: conversation.contact.displayName ?? conversation.contact.phoneE164,
         phoneE164: conversation.contact.phoneE164,
+        inboxLabel,
         messages: all.map((m) => ({
           direction: m.direction as 'in' | 'out',
           type: m.type,

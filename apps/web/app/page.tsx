@@ -5,8 +5,8 @@ import {
   getJson,
   isUnauthorized,
   postJson,
-  type ConnectionDto,
   type ConversationDto,
+  type InboxDto,
 } from '../lib/api';
 import { clearToken, getToken } from '../lib/auth';
 import { getSocket } from '../lib/socket';
@@ -69,10 +69,11 @@ export default function Home() {
 }
 
 function AppShell() {
-  const [connStatus, setConnStatus] = useState('connecting');
-  const [qr, setQr] = useState<string>();
+  const [inboxes, setInboxes] = useState<InboxDto[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [conversations, setConversations] = useState<ConversationDto[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [inboxFilter, setInboxFilter] = useState<string | null>(null); // null = all salespeople
   const [messages, setMessages] = useState<Message[]>([]);
   const selectedRef = useRef<string | null>(null);
   selectedRef.current = selectedId;
@@ -128,36 +129,42 @@ function AppShell() {
     [refreshConversations],
   );
 
-  const syncConnection = useCallback(async () => {
+  const syncInboxes = useCallback(async () => {
     try {
-      const c = await getJson<ConnectionDto>('/api/v1/connection');
-      setConnStatus(c.status);
-      setQr(c.qr);
+      setInboxes(await getJson<InboxDto[]>('/api/v1/connections'));
+      setLoaded(true);
     } catch (err) {
       if (isUnauthorized(err)) {
-        // Token expired mid-session → back through the auth gate.
         clearToken();
         window.location.reload();
         return;
       }
-      setConnStatus('server_offline');
+      setLoaded(true); // server hiccup — show whatever state we have
     }
   }, []);
 
   useEffect(() => {
-    void syncConnection();
+    void syncInboxes();
     void refreshConversations();
 
     const s = getSocket();
     // Catch-up on (re)connect — events fired before our listeners attached are lost (docs/05 §6).
     const onSocketConnect = () => {
-      void syncConnection();
+      void syncInboxes();
       void refreshConversations();
     };
     s.on('connect', onSocketConnect);
-    const onConnection = (e: { status: string; qr?: string }) => {
-      setConnStatus(e.status);
-      setQr(e.qr);
+    // connection.status now carries a connectionId — update just that salesperson's inbox.
+    const onConnection = (e: { connectionId: string; status: string; qr?: string }) => {
+      setInboxes((prev) => {
+        const i = prev.findIndex((x) => x.id === e.connectionId);
+        if (i < 0) {
+          return [...prev, { id: e.connectionId, label: null, phoneE164: null, status: e.status, qr: e.qr }];
+        }
+        const next = [...prev];
+        next[i] = { ...next[i]!, status: e.status, qr: e.qr };
+        return next;
+      });
       if (e.status === 'connected') scheduleRefresh();
     };
     const onCreated = (e: { conversationId: string; message: Message }) => {
@@ -191,14 +198,16 @@ function AppShell() {
       s.off('message.created', onCreated);
       s.off('message.status', onStatus);
     };
-  }, [refreshConversations, scheduleRefresh, syncConnection]);
+  }, [refreshConversations, scheduleRefresh, syncInboxes]);
 
-  // Safety net while pairing: poll until connected even if the socket misbehaves (docs/05 §6).
+  const anyConnected = inboxes.some((i) => i.status === 'connected');
+
+  // Safety net while onboarding the first number: poll until something connects (docs/05 §6).
   useEffect(() => {
-    if (connStatus === 'connected') return;
-    const timer = setInterval(() => void syncConnection(), 5000);
+    if (anyConnected) return;
+    const timer = setInterval(() => void syncInboxes(), 5000);
     return () => clearInterval(timer);
-  }, [connStatus, syncConnection]);
+  }, [anyConnected, syncInboxes]);
 
   const send = useCallback(
     (text: string) => {
@@ -233,23 +242,30 @@ function AppShell() {
     [],
   );
 
-  if (connStatus !== 'connected') {
-    return <QrScreen status={connStatus} qr={qr} />;
+  // Onboarding: until at least one number is linked, show the QR for the first inbox.
+  if (!anyConnected) {
+    const first = inboxes[0];
+    return <QrScreen status={loaded ? (first?.status ?? 'connecting') : 'connecting'} qr={first?.qr} />;
   }
 
-  const selected = conversations.find((c) => c.id === selectedId) ?? null;
+  const filtered =
+    inboxFilter === null ? conversations : conversations.filter((c) => c.inbox.id === inboxFilter);
+  const selected = filtered.find((c) => c.id === selectedId) ?? null;
   return (
     <div className={`app${selected ? ' with-crm' : ''}`}>
       <nav className="rail">
         <div className="logo">C</div>
         <div className="spacer" />
-        <a className="rail-btn" href="/settings" title="Settings">
+        <a className="rail-btn" href="/settings" title="Manage numbers & settings">
           ⚙
         </a>
-        <div className="conn-pill">CONNECTED</div>
+        <div className="conn-pill">{anyConnected ? 'CONNECTED' : 'OFFLINE'}</div>
       </nav>
       <ChatList
-        conversations={conversations}
+        conversations={filtered}
+        inboxes={inboxes}
+        inboxFilter={inboxFilter}
+        onFilter={setInboxFilter}
         selectedId={selectedId}
         onSelect={(id) => void openConversation(id)}
       />
@@ -263,7 +279,8 @@ function AppShell() {
           <div className="conv-empty">
             <div>
               <div className="big">Select a conversation</div>
-              Your chats are synced in real time and logged to your CRM automatically.
+              Every salesperson’s chats in one place — synced live and logged to your CRM,
+              attributed to the right person.
             </div>
           </div>
         </main>

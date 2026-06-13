@@ -1,6 +1,12 @@
 'use client';
 import { useState } from 'react';
-import { isLidOnly, type ConversationDto } from '../lib/api';
+import {
+  inboxColor,
+  inboxName,
+  isLidOnly,
+  type ConversationDto,
+  type InboxDto,
+} from '../lib/api';
 
 const AVATAR_COLORS = ['#2E9E78', '#3F7AE0', '#C06BD6', '#E08B3F', '#D6536B', '#4FA8B8', '#8B6FD6'];
 
@@ -27,13 +33,17 @@ export function fmtTime(iso: string | null): string {
 
 export function ChatList({
   conversations,
+  inboxes = [],
+  inboxFilter = null,
+  onFilter,
   selectedId,
-  phone,
   onSelect,
 }: {
   conversations: ConversationDto[];
+  inboxes?: InboxDto[];
+  inboxFilter?: string | null;
+  onFilter?: (id: string | null) => void;
   selectedId: string | null;
-  phone?: string;
   onSelect: (id: string) => void;
 }) {
   const [query, setQuery] = useState('');
@@ -44,6 +54,9 @@ export function ChatList({
       )
     : conversations;
 
+  // Only show the salesperson filter once there's more than one inbox.
+  const showFilter = inboxes.length > 1 && onFilter;
+
   return (
     <section className="list">
       <div className="list__top">
@@ -51,8 +64,30 @@ export function ChatList({
           Chat<span>Bridge</span>
         </div>
         <div className="conn">
-          <span className="dot" /> Connected{phone ? ` as ${phone}` : ''} · WhatsApp
+          <span className="dot" /> {inboxes.length > 1 ? `${inboxes.length} numbers` : 'Connected'} ·
+          WhatsApp
         </div>
+        {showFilter && (
+          <div className="inbox-filter">
+            <button
+              className={`inbox-chip ${inboxFilter === null ? 'active' : ''}`}
+              onClick={() => onFilter(null)}
+            >
+              All
+            </button>
+            {inboxes.map((ib) => (
+              <button
+                key={ib.id}
+                className={`inbox-chip ${inboxFilter === ib.id ? 'active' : ''}`}
+                onClick={() => onFilter(ib.id)}
+                title={ib.status === 'connected' ? 'connected' : ib.status}
+              >
+                <span className="inbox-dot" style={{ background: inboxColor(ib.id) }} />
+                {inboxName(ib)}
+              </button>
+            ))}
+          </div>
+        )}
         <div className="search">
           <input
             placeholder="Search chats or contacts"
@@ -85,6 +120,12 @@ export function ChatList({
                   <div className="t-prev">
                     {isLidOnly(c.contact) ? 'number hidden by WhatsApp' : c.contact.phoneE164}
                   </div>
+                  {inboxes.length > 1 && (
+                    <div className="t-inbox">
+                      <span className="inbox-dot" style={{ background: inboxColor(c.inbox.id) }} />
+                      {inboxName(c.inbox)}
+                    </div>
+                  )}
                 </div>
                 <div className="t-side">
                   <span className="t-time">{fmtTime(c.lastMessageAt)}</span>

@@ -13,6 +13,8 @@ datasource db {
 
 model WaConnection {
   id        String   @id @default(uuid())
+  /// Salesperson / inbox name shown in the UI and on CRM notes (M10). e.g. "Ahmed".
+  label     String?
   phoneE164 String?
   provider  String   @default("baileys")
   status    String   @default("disconnected")

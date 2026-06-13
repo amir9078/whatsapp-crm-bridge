@@ -387,6 +387,50 @@ button {
   align-items: flex-end;
   gap: 6px;
 }
+
+/* ── Multi-inbox: salesperson filter + per-chat tags (M10) ── */
+.inbox-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 11px;
+}
+.inbox-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 5px 11px;
+  transition: 0.12s;
+}
+.inbox-chip:hover {
+  border-color: var(--accent);
+}
+.inbox-chip.active {
+  background: #eaf7f0;
+  border-color: var(--accent);
+  color: var(--brand-700);
+}
+.inbox-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: none;
+}
+.t-inbox {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-3);
+}
 .t-time {
   font-size: 11.5px;
   color: var(--ink-3);
@@ -906,6 +950,95 @@ button {
   border: 1px solid #d6f0e1;
   color: #157a4b;
   font-size: 12.5px;
+}
+
+/* ── Team / multi-number manager (M10) ── */
+.team-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.team-row {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+.team-row__head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.team-row__name {
+  font-weight: 600;
+  font-size: 14px;
+  flex: 1;
+}
+.team-status {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 11px;
+}
+.team-status.ok {
+  background: #eafaf0;
+  color: #157a4b;
+  border: 1px solid #d6f0e1;
+}
+.team-status.warn {
+  background: #fdf3e0;
+  color: #9a6a00;
+  border: 1px solid #f3e2b8;
+}
+.team-status.bad {
+  background: #fdecea;
+  color: #a03a32;
+  border: 1px solid #f6cbc6;
+}
+.team-remove {
+  padding: 5px 10px !important;
+  font-size: 12px !important;
+}
+.team-qrbox {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.team-qr {
+  width: 160px;
+  height: 160px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 8px;
+  image-rendering: pixelated;
+}
+.team-qrhint {
+  font-size: 12.5px;
+  color: var(--ink-2);
+  line-height: 1.6;
+  max-width: 22ch;
+}
+.team-add {
+  display: flex;
+  gap: 8px;
+  margin-top: 14px;
+}
+.team-add input {
+  flex: 1;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 13.5px;
+  outline: none;
+}
+.team-add input:focus {
+  border-color: var(--accent);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(37, 211, 102, 0.12);
 }
 .settings .crm-flash {
   margin: 0;

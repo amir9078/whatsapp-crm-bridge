@@ -76,9 +76,12 @@ before(async () => {
     stdio: 'pipe',
   });
   prisma = createPrisma();
-  const waConnectionId = await ensureConnection(prisma, { phoneE164: '+971500000001' });
-  built = await buildServer({ prisma, connector: fake, waConnectionId });
-  await fake.connect();
+  await ensureConnection(prisma, { phoneE164: '+971500000001' });
+  built = await buildServer({
+    prisma,
+    connectorFactory: () => fake,
+    baseAuthDir: join(tmp, 'auth'),
+  });
   await built.app.listen({ port: 0, host: '127.0.0.1' });
   const address = built.app.server.address();
   assert.ok(address && typeof address === 'object');

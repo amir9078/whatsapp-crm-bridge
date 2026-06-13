@@ -107,16 +107,15 @@ before(async () => {
     stdio: 'pipe',
   });
   prisma = createPrisma();
-  const waConnectionId = await ensureConnection(prisma, { phoneE164: '+971500000001' });
+  await ensureConnection(prisma, { phoneE164: '+971500000001' });
   built = await buildServer({
     prisma,
-    connector: fakeWa,
-    waConnectionId,
+    connectorFactory: () => fakeWa,
+    baseAuthDir: join(tmp, 'auth'),
     crmAdapters: { odoo: fakeCrm },
     crmDebounceMs: 30,
     encryptionKey: KEY,
   });
-  await fakeWa.connect();
   await built.app.listen({ port: 0, host: '127.0.0.1' });
   const address = built.app.server.address();
   assert.ok(address && typeof address === 'object');

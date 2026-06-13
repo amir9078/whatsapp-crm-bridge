@@ -17,6 +17,12 @@ export interface ConversationDto {
     waId: string | null;
     lidJid: string | null;
   };
+  /** Which salesperson inbox this conversation belongs to (M10). */
+  inbox: {
+    id: string;
+    label: string | null;
+    phoneE164: string | null;
+  };
 }
 
 /**
@@ -31,6 +37,27 @@ export interface ConnectionDto {
   id: string;
   status: string;
   qr?: string;
+}
+
+/** One salesperson inbox (M10). */
+export interface InboxDto {
+  id: string;
+  label: string | null;
+  phoneE164: string | null;
+  status: string;
+  qr?: string;
+}
+
+/** Stable colour per inbox so each salesperson's chats are visually distinguishable. */
+const INBOX_COLORS = ['#3F7AE0', '#C06BD6', '#E08B3F', '#2E9E78', '#D6536B', '#4FA8B8', '#8B6FD6'];
+export function inboxColor(id: string): string {
+  let hash = 0;
+  for (const ch of id) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0;
+  return INBOX_COLORS[hash % INBOX_COLORS.length] ?? INBOX_COLORS[0]!;
+}
+
+export function inboxName(inbox: { label: string | null; phoneE164: string | null }): string {
+  return inbox.label ?? inbox.phoneE164 ?? 'Inbox';
 }
 
 export class ApiError extends Error {

@@ -12,7 +12,7 @@ export function listConversations(prisma: PrismaClient, limit = 2000) {
   return prisma.conversation.findMany({
     take: limit,
     orderBy: [{ lastMessageAt: { sort: 'desc', nulls: 'last' } }, { createdAt: 'desc' }],
-    include: { contact: true },
+    include: { contact: true, waConnection: true },
   });
 }
 

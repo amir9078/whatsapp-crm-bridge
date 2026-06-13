@@ -2,16 +2,9 @@
 // Settings (M7): WhatsApp connection status, CRM (Odoo) credentials + sync options, logout.
 // CRM creds live in the DB via PUT /crm/integration — no .env editing required.
 import { useCallback, useEffect, useState } from 'react';
-import {
-  deleteJson,
-  downloadFile,
-  getJson,
-  isUnauthorized,
-  postJson,
-  putJson,
-  type ConnectionDto,
-} from '../../lib/api';
+import { deleteJson, downloadFile, getJson, isUnauthorized, postJson, putJson } from '../../lib/api';
 import { clearToken } from '../../lib/auth';
+import { TeamManager } from '../../components/TeamManager';
 
 interface IntegrationDto {
   id: string;
@@ -46,7 +39,6 @@ const DEFAULT_FORM: OdooForm = {
 };
 
 export default function SettingsPage() {
-  const [conn, setConn] = useState<ConnectionDto | null>(null);
   const [authRequired, setAuthRequired] = useState(false);
   const [form, setForm] = useState<OdooForm>(DEFAULT_FORM);
   const [apiKeyHint, setApiKeyHint] = useState<string | null>(null);
@@ -57,12 +49,10 @@ export default function SettingsPage() {
 
   const load = useCallback(async () => {
     try {
-      const [c, integ, auth] = await Promise.all([
-        getJson<ConnectionDto>('/api/v1/connection'),
+      const [integ, auth] = await Promise.all([
         getJson<IntegrationDto | null>('/api/v1/crm/integration'),
         getJson<{ authRequired: boolean }>('/api/v1/auth/status'),
       ]);
-      setConn(c);
       setAuthRequired(auth.authRequired);
       if (integ?.credentials) {
         setForm({
@@ -176,17 +166,7 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <section>
-          <h2>WhatsApp</h2>
-          <div className="settings__row">
-            <span className={`dot ${conn?.status === 'connected' ? '' : 'dot--warn'}`} />
-            {conn === null
-              ? 'Checking connection…'
-              : conn.status === 'connected'
-                ? 'Connected — chats are syncing.'
-                : `Status: ${conn.status}. Open the inbox to scan the QR code.`}
-          </div>
-        </section>
+        <TeamManager />
 
         <section>
           <h2>CRM — Odoo</h2>

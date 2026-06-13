@@ -1,4 +1,4 @@
-import type { DbContact, DbConversation, DbMessage } from '@wcb/db';
+import type { DbContact, DbConversation, DbMessage, DbWaConnection } from '@wcb/db';
 import type { Message } from '@wcb/shared';
 
 /** Prisma row → canonical shared Message (what the API and WebSocket speak). */
@@ -33,9 +33,17 @@ export interface ConversationDto {
     waId: string | null;
     lidJid: string | null;
   };
+  /** Which salesperson inbox this conversation belongs to (M10). */
+  inbox: {
+    id: string;
+    label: string | null;
+    phoneE164: string | null;
+  };
 }
 
-export function toConversationDto(row: DbConversation & { contact: DbContact }): ConversationDto {
+export function toConversationDto(
+  row: DbConversation & { contact: DbContact; waConnection?: DbWaConnection | null },
+): ConversationDto {
   return {
     id: row.id,
     contactId: row.contactId,
@@ -49,6 +57,11 @@ export function toConversationDto(row: DbConversation & { contact: DbContact }):
       displayName: row.contact.displayName,
       waId: row.contact.waId,
       lidJid: row.contact.lidJid,
+    },
+    inbox: {
+      id: row.waConnectionId,
+      label: row.waConnection?.label ?? null,
+      phoneE164: row.waConnection?.phoneE164 ?? null,
     },
   };
 }

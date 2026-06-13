@@ -57,11 +57,12 @@ before(async () => {
     stdio: 'pipe',
   });
   prisma = createPrisma();
-  const waConnectionId = await ensureConnection(prisma, { phoneE164: '+971500000001' });
+  await ensureConnection(prisma, { phoneE164: '+971500000001' });
+  const fake = new FakeConnector();
   built = await buildServer({
     prisma,
-    connector: new FakeConnector(),
-    waConnectionId,
+    connectorFactory: () => fake,
+    baseAuthDir: join(tmp, 'auth'),
     auth: { password: PASSWORD },
   });
   await built.app.listen({ port: 0, host: '127.0.0.1' });

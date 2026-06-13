@@ -1,8 +1,8 @@
-// Entry point: real Baileys connector + Fastify/Socket.IO server, one process (self-host).
-import { dirname, resolve } from 'node:path';
+// Entry point: Baileys connectors (one per salesperson inbox) + Fastify/Socket.IO server.
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { BaileysConnector } from '@wcb/connector';
-import { createPrisma, ensureConnection } from '@wcb/db';
+import { createPrisma } from '@wcb/db';
 import { buildServer } from './app.js';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..');
@@ -16,25 +16,24 @@ process.env.DATABASE_URL ??= `file:${resolve(root, 'packages/db/prisma/dev.db').
 
 async function main(): Promise<void> {
   const prisma = createPrisma();
-  const waConnectionId = await ensureConnection(prisma);
-  const connector = new BaileysConnector({
-    authDir: process.env.WA_AUTH_DIR ?? resolve(root, 'auth_state'),
-  });
+  const baseAuthDir = process.env.WA_AUTH_DIR ?? resolve(root, 'auth_state');
+  const encryptionKey = process.env.APP_ENCRYPTION_KEY || undefined;
 
   const { app } = await buildServer({
     prisma,
-    connector,
-    waConnectionId,
+    baseAuthDir,
+    // One Baileys session per connection id, each with its own encrypted auth_state subfolder.
+    connectorFactory: (connectionId) =>
+      new BaileysConnector({ authDir: join(baseAuthDir, connectionId), encryptionKey }),
     auth: { password: process.env.AUTH_PASSWORD, secret: process.env.JWT_SECRET },
-    encryptionKey: process.env.APP_ENCRYPTION_KEY || undefined,
+    encryptionKey,
     retentionDays: Number(process.env.RETENTION_DAYS ?? 0) || undefined,
   });
-  await connector.connect();
 
   const port = Number(process.env.PORT ?? 4000);
   await app.listen({ port, host: '0.0.0.0' });
   console.log(`✅ server listening on http://localhost:${port}  (API: /api/v1, WS: socket.io)`);
-  console.log('   Open the web app to scan the QR, or GET /api/v1/connection');
+  console.log('   Open the web app to scan the QR(s), or GET /api/v1/connections');
   if (!process.env.AUTH_PASSWORD) {
     console.warn('⚠ AUTH_PASSWORD not set — the UI and API are open to anyone who can reach this port.');
   }

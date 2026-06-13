@@ -10,6 +10,13 @@ export {
 export type { IngestResult } from './ingest.js';
 export { listConversations, listMessages } from './queries.js';
 export {
+  listWaConnections,
+  getWaConnection,
+  createWaConnection,
+  updateWaConnection,
+  deleteWaConnection,
+} from './connections.js';
+export {
   getActiveIntegration,
   getAnyIntegration,
   saveIntegration,

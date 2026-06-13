@@ -12,18 +12,21 @@ import {
   Prisma,
   type PrismaClient,
 } from '@wcb/db';
-import type { ConnectorEvent, CrmAdapter, WhatsAppConnector, WhatsAppEvent } from '@wcb/shared';
+import type { ConnectorEvent, CrmAdapter, WhatsAppEvent } from '@wcb/shared';
 import { createCrmAdapters } from '@wcb/crm';
 import { toConversationDto, toSharedMessage } from './mappers.js';
 import { CrmSyncWorker } from './crm/sync.js';
 import { registerCrmRoutes } from './crm/routes.js';
 import { Auth, bearerToken, type AuthConfig } from './auth.js';
 import { purgeOldMessages, registerDataRoutes } from './data.js';
+import { ConnectorManager, type ConnectorFactory } from './connector-manager.js';
 
 export interface ServerDeps {
   prisma: PrismaClient;
-  connector: WhatsAppConnector;
-  waConnectionId: string;
+  /** Builds a connector per connection id (M10). Real = BaileysConnector; tests inject a fake. */
+  connectorFactory: ConnectorFactory;
+  /** Root auth_state folder; each connection lives in `<baseAuthDir>/<id>`. */
+  baseAuthDir: string;
   /** CRM adapter registry override (tests inject fakes). Defaults to the real adapters. */
   crmAdapters?: Record<string, CrmAdapter>;
   /** Sync debounce override (tests use a few ms). */
@@ -40,6 +43,7 @@ export interface BuiltServer {
   app: FastifyInstance;
   io: IOServer;
   crmWorker: CrmSyncWorker;
+  manager: ConnectorManager;
 }
 
 const SendBody = z.object({
@@ -49,13 +53,15 @@ const SendBody = z.object({
 
 const LoginBody = z.object({ password: z.string().min(1) });
 
+const AddConnectionBody = z.object({ label: z.string().max(60).optional() });
+
 /** Routes reachable without a token (the login flow itself + liveness probes). */
 const PUBLIC_PATHS = new Set(['/api/v1/health', '/api/v1/auth/status', '/api/v1/auth/login']);
 
 export async function buildServer({
   prisma,
-  connector,
-  waConnectionId,
+  connectorFactory,
+  baseAuthDir,
   crmAdapters,
   crmDebounceMs,
   auth: authConfig,
@@ -82,8 +88,6 @@ export async function buildServer({
     const token = (socket.handshake.auth as { token?: string } | undefined)?.token;
     next(auth.verify(token) ? undefined : new Error('unauthorized'));
   });
-
-  let lastQr: string | undefined;
 
   const emit = (event: WhatsAppEvent): void => {
     io.emit(event.type, event);
@@ -112,14 +116,15 @@ export async function buildServer({
     app.addHook('onClose', () => clearInterval(timer));
   }
 
-  // ── connector events → DB → WebSocket (the two-path inbound flow, docs/05 §2) ──
-  async function handleConnectorEvent(event: ConnectorEvent): Promise<void> {
+  // ── connector events (tagged by connection id) → DB → WebSocket (docs/05 §2) ──
+  // Each salesperson's session flows through here under its own connectionId, so a message
+  // is always ingested against the correct inbox and never mixed with another salesperson's.
+  async function handleConnectorEvent(connectionId: string, event: ConnectorEvent): Promise<void> {
     switch (event.type) {
       case 'qr':
-        lastQr = event.qr;
         emit({
           type: 'connection.status',
-          connectionId: waConnectionId,
+          connectionId,
           status: 'qr_pending',
           qr: event.qr,
           ts: Date.now(),
@@ -127,20 +132,19 @@ export async function buildServer({
         });
         break;
       case 'connection':
-        if (event.status === 'connected') lastQr = undefined;
         await prisma.waConnection
-          .update({ where: { id: waConnectionId }, data: { status: event.status } })
+          .update({ where: { id: connectionId }, data: { status: event.status } })
           .catch(() => undefined);
         emit({
           type: 'connection.status',
-          connectionId: waConnectionId,
+          connectionId,
           status: event.status,
           ts: Date.now(),
           schemaVersion: 1,
         });
         break;
       case 'message': {
-        const result = await ingestInboundMessage(prisma, waConnectionId, event.message);
+        const result = await ingestInboundMessage(prisma, connectionId, event.message);
         if (!result.created) break; // duplicate (e.g. echo of our own send) — already broadcast
         const row = await prisma.message.findUnique({ where: { id: result.messageId } });
         if (row) {
@@ -181,20 +185,30 @@ export async function buildServer({
     }
   }
 
-  connector.on((event) => {
-    handleConnectorEvent(event).catch((err: unknown) => app.log.error(err));
+  const manager = new ConnectorManager({
+    prisma,
+    connectorFactory,
+    baseAuthDir,
+    log: (msg, err) => app.log.error({ err }, msg),
+    onEvent: (connectionId, event) => {
+      handleConnectorEvent(connectionId, event).catch((err: unknown) => app.log.error(err));
+    },
   });
+  await manager.init();
+  app.addHook('onClose', () => manager.stopAll());
 
-  // New browser connections immediately learn the current state (QR or connected).
+  // New browser connections immediately learn every inbox's current state (QR or connected).
   io.on('connection', (socket) => {
-    socket.emit('connection.status', {
-      type: 'connection.status',
-      connectionId: waConnectionId,
-      status: connector.getStatus(),
-      qr: lastQr,
-      ts: Date.now(),
-      schemaVersion: 1,
-    } satisfies WhatsAppEvent);
+    for (const state of manager.list()) {
+      socket.emit('connection.status', {
+        type: 'connection.status',
+        connectionId: state.id,
+        status: state.status,
+        qr: state.qr,
+        ts: Date.now(),
+        schemaVersion: 1,
+      } satisfies WhatsAppEvent);
+    }
   });
 
   // ── REST API (docs/03 §3) ──
@@ -212,11 +226,38 @@ export async function buildServer({
     return session; // { token, expiresAt } — client sends it as a Bearer header + socket auth
   });
 
-  app.get('/api/v1/connection', async () => ({
-    id: waConnectionId,
-    status: connector.getStatus(),
-    qr: lastQr,
-  }));
+  // ── Connections (M10): one WhatsApp inbox per salesperson ──
+  // Singular kept for backward-compat: returns the first inbox (the original pre-M10 number).
+  app.get('/api/v1/connection', async () => {
+    const first = manager.list()[0];
+    return first ? { id: first.id, status: first.status, qr: first.qr } : { status: 'disconnected' };
+  });
+
+  app.get('/api/v1/connections', async () => manager.list());
+
+  app.post('/api/v1/connections', async (req, reply) => {
+    const parsed = AddConnectionBody.safeParse(req.body ?? {});
+    if (!parsed.success) return reply.code(400).send({ error: 'invalid body' });
+    const state = await manager.add(parsed.data.label);
+    return reply.code(201).send(state);
+  });
+
+  app.get('/api/v1/connections/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    const state = manager.state(id);
+    if (!state) return reply.code(404).send({ error: 'connection not found' });
+    return state;
+  });
+
+  app.delete('/api/v1/connections/:id', async (req, reply) => {
+    const { id } = req.params as { id: string };
+    if (manager.list().length <= 1) {
+      return reply.code(409).send({ error: 'cannot remove the only inbox' });
+    }
+    const ok = await manager.remove(id);
+    if (!ok) return reply.code(404).send({ error: 'connection not found' });
+    return { ok: true };
+  });
 
   app.get('/api/v1/conversations', async () => {
     const rows = await listConversations(prisma);
@@ -251,6 +292,13 @@ export async function buildServer({
       include: { contact: true },
     });
     if (!conversation) return reply.code(404).send({ error: 'conversation not found' });
+
+    // Send from the SAME inbox that owns this conversation, so the reply goes out on the
+    // right salesperson's number (never another salesperson's).
+    const connector = manager.getConnector(conversation.waConnectionId);
+    if (!connector) {
+      return reply.code(409).send({ error: 'inbox for this conversation is not connected' });
+    }
 
     let sendResult;
     try {
@@ -319,5 +367,5 @@ export async function buildServer({
   registerCrmRoutes(app, { prisma, worker: crmWorker, adapters, encryptionKey });
   registerDataRoutes(app, { prisma });
 
-  return { app, io, crmWorker };
+  return { app, io, crmWorker, manager };
 }
