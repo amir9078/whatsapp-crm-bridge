@@ -57,6 +57,8 @@ export class BaileysConnector implements WhatsAppConnector {
   /** Consecutive reconnects that never reached 'open'; past the cap we wipe → fresh QR. */
   private reconnectAttempts = 0;
   private reconnectTimer?: NodeJS.Timeout;
+  /** True only during the async window of connect(); blocks overlapping connect() calls. */
+  private connecting = false;
   private static readonly MAX_RECONNECTS = 5;
   /** LID → phone JID directory, fed by history sync + contacts events (message-mapping.ts). */
   private readonly lidToPn = new Map<string, string>();
@@ -126,6 +128,22 @@ export class BaileysConnector implements WhatsAppConnector {
   }
 
   async connect(): Promise<void> {
+    // Guard against overlapping connects: every close used to call connect() with no
+    // teardown, so failing sessions spawned a pile of live sockets that each re-emitted
+    // close→401 and re-saved creds — the 401 storm. One socket at a time, old one killed.
+    if (this.connecting) return;
+    this.connecting = true;
+    try {
+      this.teardownSocket();
+      await this.openSocket();
+    } catch (err) {
+      this.connecting = false; // never leave the guard stuck — a failed setup must be retryable
+      throw err;
+    }
+  }
+
+  /** The socket setup + listener wiring, isolated so connect() can guard it cleanly. */
+  private async openSocket(): Promise<void> {
     const { state, saveCreds } = await useEncryptedMultiFileAuthState(
       this.authDir,
       this.encryptionKey,
@@ -151,6 +169,7 @@ export class BaileysConnector implements WhatsAppConnector {
       markOnlineOnConnect: false,
     });
     this.sock = sock;
+    this.connecting = false; // socket created; subsequent reconnects may proceed
 
     sock.ev.on('creds.update', saveCreds);
 
@@ -212,6 +231,9 @@ export class BaileysConnector implements WhatsAppConnector {
       for (const message of messages) {
         const inbound = toInboundMessage(message, this.lidToPn);
         if (inbound) {
+          console.log(
+            `[connector] LIVE message (${type}) ${inbound.fromMe ? 'out→' : 'in←'} ${inbound.phoneE164} type=${inbound.type}`,
+          );
           this.learnPairFromMessage(inbound.lidJid, inbound.phoneE164);
           this.emit({ type: 'message', message: inbound });
         }
@@ -279,10 +301,29 @@ export class BaileysConnector implements WhatsAppConnector {
   }
 
   /** Wipe dead credentials and restart pairing (emits a fresh QR). */
+  /** Detach + close the current socket so a dead session stops emitting events / saving creds. */
+  private teardownSocket(): void {
+    const sock = this.sock;
+    this.sock = undefined;
+    if (!sock) return;
+    try {
+      sock.ev.removeAllListeners('connection.update');
+      sock.ev.removeAllListeners('creds.update');
+      sock.ev.removeAllListeners('messages.upsert');
+      sock.ev.removeAllListeners('messaging-history.set');
+      sock.ev.removeAllListeners('contacts.upsert');
+      sock.ev.removeAllListeners('contacts.update');
+      sock.ev.removeAllListeners('messages.update');
+      sock.end(undefined);
+    } catch (err) {
+      this.logger.error(err);
+    }
+  }
+
   private async resetSession(): Promise<void> {
     this.reconnectAttempts = 0;
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.sock = undefined;
+    this.teardownSocket(); // kill the dead socket BEFORE wiping so it can't re-save creds
     try {
       await rm(this.authDir, { recursive: true, force: true });
     } catch (err) {
